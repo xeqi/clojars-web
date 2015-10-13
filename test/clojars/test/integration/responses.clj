@@ -24,6 +24,6 @@
               (has (text? "Page not found - Clojars")))))
 
 (deftest respond-405-for-puts
-  (-> (session web/clojars-app)
+  (-> (session web/main-routes)
       (visit "/nonexistent-route" :request-method :put)
       (has (status? 405))))
