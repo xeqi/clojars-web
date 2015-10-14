@@ -34,7 +34,7 @@
   (is (= (get-content-type {:headers {"content-type" "application/json;charset=utf-8"}}) "application/json")))
 
 (deftest an-api-test
-  (-> (session web/clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password"))
   (inject-artifacts-into-repo! "dantheman" "test.jar" "test-0.0.1/test.pom")
   (inject-artifacts-into-repo! "dantheman" "test.jar" "test-0.0.2/test.pom")

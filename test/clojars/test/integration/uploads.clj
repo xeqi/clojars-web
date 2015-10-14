@@ -1,8 +1,6 @@
 (ns clojars.test.integration.uploads
   (:require [cemerick.pomegranate.aether :as aether]
-            [clojars
-             [config :refer [config]]
-             [web :as web :refer [clojars-app]]]
+            [clojars.config :refer [config]]
             [clojars.test.integration.steps :refer :all]
             [clojars.test.test-helper :as help]
             [clojure.data.codec.base64 :as base64]
@@ -17,7 +15,7 @@
 (use-fixtures :each help/default-fixture help/index-fixture)
 
 (deftest user-can-register-and-deploy
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password"))
   (help/delete-file-recursively help/local-repo)
   (help/delete-file-recursively help/local-repo2)
@@ -42,7 +40,7 @@
           :repositories {"test" {:url
                                  (str "http://localhost:" help/test-port "/repo")}}
           :local-repo help/local-repo2)))
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (visit "/groups/org.clojars.dantheman")
       (has (status? 200))
       (within [:#content-wrapper
@@ -56,7 +54,7 @@
               (has (text? "https://example.org")))))
 
 (deftest user-can-deploy-to-new-group
-   (-> (session clojars-app)
+   (-> (session help/clojars-app)
        (register-as "dantheman" "test@example.org" "password"))
    (help/delete-file-recursively help/local-repo)
    (help/delete-file-recursively help/local-repo2)
@@ -74,7 +72,7 @@
            :repositories {"test" {:url
                                   (str "http://localhost:" help/test-port "/repo")}}
            :local-repo help/local-repo2)))
-   (-> (session clojars-app)
+   (-> (session help/clojars-app)
        (visit "/groups/fake")
        (has (status? 200))
        (within [:#content-wrapper
@@ -88,9 +86,9 @@
                (has (text? "https://example.org")))))
 
 (deftest user-cannot-deploy-to-groups-without-permission
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password"))
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "fixture" "fixture@example.org" "password"))
   (is (thrown-with-msg? org.sonatype.aether.deployment.DeploymentException
         #"Forbidden"
@@ -104,7 +102,7 @@
          :local-repo help/local-repo))))
 
 (deftest user-cannot-redeploy
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password"))
   (aether/deploy
    :coordinates '[org.clojars.dantheman/test "0.0.1"]
@@ -127,7 +125,7 @@
           :local-repo help/local-repo))))
 
 (deftest user-can-redeploy-snapshots
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password"))
   (aether/deploy
    :coordinates '[org.clojars.dantheman/test "0.0.3-SNAPSHOT"]
@@ -147,7 +145,7 @@
    :local-repo help/local-repo))
 
 (deftest user-can-deploy-snapshot-with-dot
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password"))
   (aether/deploy
    :coordinates '[org.clojars.dantheman/test.thing "0.0.3-SNAPSHOT"]
@@ -180,7 +178,7 @@
          :local-repo help/local-repo))))
 
 (deftest deploy-requires-lowercase-group
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password"))
   (is (thrown-with-msg? org.sonatype.aether.deployment.DeploymentException
         #"Forbidden - group names must consist solely of lowercase"
@@ -194,7 +192,7 @@
          :local-repo help/local-repo))))
 
 (deftest deploy-requires-lowercase-project
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password"))
   (is (thrown-with-msg? org.sonatype.aether.deployment.DeploymentException
         #"Forbidden - project names must consist solely of lowercase"
@@ -208,7 +206,7 @@
          :local-repo help/local-repo))))
 
 (deftest deploy-requires-ascii-version
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password"))
   (is (thrown-with-msg? org.sonatype.aether.deployment.DeploymentException
         #"Forbidden - version strings must consist solely of letters"
@@ -222,7 +220,7 @@
          :local-repo help/local-repo))))
 
 (deftest put-on-html-fails
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password")
       (visit "/repo/group/artifact/1.0.0/injection.html"
              :request-method :put
@@ -236,7 +234,7 @@
       (has (status? 400))))
 
 (deftest put-using-dotdot-fails
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password")
       (visit "/repo/../artifact/1.0.0/test.jar" :request-method :put
              :headers {"authorization"
@@ -278,10 +276,10 @@
       (has (status? 400))))
 
 (deftest does-not-write-incomplete-file
-  (-> (session clojars-app)
+  (-> (session help/clojars-app)
       (register-as "dantheman" "test@example.org" "password"))
   (with-out-str
-    (-> (session clojars-app)
+    (-> (session help/clojars-app)
         (visit "/repo/group3/artifact3/1.0.0/test.jar"
                :body (proxy [java.io.InputStream] []
                        (read

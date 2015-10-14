@@ -133,7 +133,3 @@
       (wrap-secure-session)
       (wrap-resource "public")
       (wrap-file-info)))
-
-(defroutes clojars-app
-  (repo {:error-handler (reify ports/ErrorHandler (-report [t e extra] "error-id"))})
-  (ui {}))

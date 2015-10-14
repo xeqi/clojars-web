@@ -3,9 +3,10 @@
   (:require [clojars
              [config :refer [config]]
              [db :as db]
+             [ports :as ports]
              [search :as search]
              [system :as system]
-             [web :as web]]
+             [web :as web :refer [repo ui]]]
             [clojars.db.migrate :as migrate]
             [clojure.java
              [io :as io]
@@ -13,6 +14,7 @@
              [shell :as sh]]
             [clucy.core :as clucy]
             [com.stuartsierra.component :as component]
+            [compojure.core :refer [defroutes]]
             [korma.db :as kdb]))
 
 (def local-repo (io/file (System/getProperty "java.io.tmpdir")
@@ -94,20 +96,17 @@
 
 (declare test-port)
 
+(defroutes clojars-app
+  (repo {:error-handler (reify ports/ErrorHandler (-report [t e extra] "error-id"))})
+  (ui {}))
+
 (defn run-test-app
-  ([f]
-   (run-test-app nil f))
-  ([verbose? f]
-   (when-not verbose?
-     (alter-var-root #'web/clojars-app
-       (fn [app]
-         #(binding [*out* (java.io.StringWriter.)]
-            (app %)))))
-   (let [system (component/start (system/new-system test-config))
-         server (get-in system [:http :server])
-         port (-> server .getConnectors first .getLocalPort)]
-     (with-redefs [test-port port]
-       (try
-         (f)
-         (finally
-           (.stop server)))))))
+  [f]
+  (let [system (component/start (system/new-system test-config))
+        server (get-in system [:http :server])
+        port (-> server .getConnectors first .getLocalPort)]
+    (with-redefs [test-port port]
+      (try
+        (f)
+        (finally
+          (.stop server))))))
