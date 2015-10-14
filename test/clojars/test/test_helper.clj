@@ -20,19 +20,23 @@
 (def local-repo2 (io/file (System/getProperty "java.io.tmpdir")
                          "clojars" "test" "local-repo2"))
 
-(def test-config {:db {:classname "org.sqlite.JDBC"
-                       :subprotocol "sqlite"
-                       :subname "data/test/db"}
-                  :repo "data/test/repo"
-                  :stats-dir "data/test/stats"
-                  :index-path "data/test/index"
-                  :bcrypt-work-factor 12
-                  :mail {:hostname "smtp.gmail.com"
-                         :from "noreply@clojars.org"
-                         :username "clojars@pupeno.com"
-                         :password "fuuuuuu"
-                         :port 465 ; If you change ssl to false, the port might not be effective, search for .setSSL and .setSslSmtpPort
-                         :ssl true}})
+(def test-config
+  (system/translate
+   {:app {:middleware []}
+    :port 0
+    :db {:classname "org.sqlite.JDBC"
+         :subprotocol "sqlite"
+         :subname "data/test/db"}
+    :repo "data/test/repo"
+    :stats-dir "data/test/stats"
+    :index-path "data/test/index"
+    :bcrypt-work-factor 12
+    :mail {:hostname "smtp.gmail.com"
+           :from "noreply@clojars.org"
+           :username "clojars@pupeno.com"
+           :password "fuuuuuu"
+           :port 465 ; If you change ssl to false, the port might not be effective, search for .setSSL and .setSslSmtpPort
+           :ssl true}}))
 
 (defn using-test-config [f]
   (with-redefs [config test-config]
@@ -99,7 +103,7 @@
        (fn [app]
          #(binding [*out* (java.io.StringWriter.)]
             (app %)))))
-   (let [system (component/start (system/new-system config))
+   (let [system (component/start (system/new-system test-config))
          server (get-in system [:http :server])
          port (-> server .getConnectors first .getLocalPort)]
      (with-redefs [test-port port]

@@ -9,17 +9,34 @@
             [reloaded.repl :refer [system init start stop go reset]]
             [clojars.config :as config]
             [clojars.system :as system]
-            [clojars.db.migrate :refer [migrate]]))
+            [clojars.db.migrate :refer [migrate]]
+            [ring.middleware.stacktrace :as stacktrace]
+            [hiccup.page :as page]
+            [hiccup.core :as hiccup]
+            [clojars.web.safe-hiccup :as safe-hiccup]))
+
+(def doctype
+  {:html5 (safe-hiccup/raw (page/doctype :html5))})
+
+(def style (comp safe-hiccup/raw @#'stacktrace/style-resource))
+
+(defn wrap-stacktrace [h]
+  "this is a hack to allow wrap-stacktrace to work with our custom hiccup escaping
+by default. If the view system is ever changed, remove this"
+  (fn [r]
+    (with-redefs [page/doctype doctype
+                  stacktrace/style-resource style]
+      ((stacktrace/wrap-stacktrace h) r))))
 
 (def dev-env
-  {:app {:middleware []}})
+  {:app {:middleware [wrap-stacktrace]}})
 
 (def config
-  (meta-merge config
+  (meta-merge config/config
               dev-env))
 
 (defn new-system []
-  (system/new-system config))
+  (system/new-system (system/translate config)))
 
 (ns-unmap *ns* 'test)
 

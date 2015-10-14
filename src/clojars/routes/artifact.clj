@@ -1,18 +1,31 @@
 (ns clojars.routes.artifact
-  (:require [compojure.core :refer [GET POST defroutes]]
-            [clojars.db :as db]
-            [clojars.auth :as auth]
-            [clojars.web.jar :as view]
-            [clojars.web.common :as common]
-            [clojars.promote :as promote]
-            [ring.util.response :as response]
-            [clojure.set :as set]))
+  (:require [clojars
+             [auth :as auth]
+             [db :as db]
+             [maven :refer [jar-to-pom-map]]
+             [ports :as ports]
+             [promote :as promote]]
+            [clojars.web
+             [common :as common]
+             [jar :as view]]
+            [clojure.set :as set]
+            [compojure.core :as compojure :refer [GET POST]]
+            [ring.util.response :as response])
+  (:import java.io.IOException))
 
-(defn show [group-id artifact-id]
+(defn find-pom [error-handler artifact]
+  (try
+    (jar-to-pom-map artifact)
+    (catch IOException e
+      (ports/report error-handler (ex-info "Failed to create pom map" artifact e))
+      nil)))
+
+(defn show [error-handler group-id artifact-id]
   (if-let [artifact (db/find-jar group-id artifact-id)]
     (auth/try-account
      (view/show-jar account
                     artifact
+                    (find-pom error-handler artifact)
                     (db/recent-versions group-id artifact-id 5)
                     (db/count-versions group-id artifact-id)))))
 
@@ -23,11 +36,12 @@
                          artifact
                          (db/recent-versions group-id artifact-id)))))
 
-(defn show-version [group-id artifact-id version]
+(defn show-version [error-handler group-id artifact-id version]
   (if-let [artifact (db/find-jar group-id artifact-id version)]
     (auth/try-account
      (view/show-jar account
                     artifact
+                    (find-pom error-handler artifact)
                     (db/recent-versions group-id artifact-id 5)
                     (db/count-versions group-id artifact-id)))))
 
@@ -44,51 +58,52 @@
                               (response/header "Cache-Control" "no-cache")
                               (response/content-type "image/svg+xml")))))
 
-(defroutes routes
-  (GET ["/:artifact-id", :artifact-id #"[^/]+"] [artifact-id]
-       (show artifact-id artifact-id))
-  (GET ["/:group-id/:artifact-id", :group-id #"[^/]+" :artifact-id #"[^/]+"]
-       [group-id artifact-id]
-       (show group-id artifact-id))
+(defn routes [error-handler]
+  (compojure/routes
+   (GET ["/:artifact-id", :artifact-id #"[^/]+"] [artifact-id]
+        (show error-handler artifact-id artifact-id))
+   (GET ["/:group-id/:artifact-id", :group-id #"[^/]+" :artifact-id #"[^/]+"]
+        [group-id artifact-id]
+        (show error-handler group-id artifact-id))
 
-  (GET ["/:artifact-id/versions" :artifact-id #"[^/]+"] [artifact-id]
-       (list-versions artifact-id artifact-id))
-  (GET ["/:group-id/:artifact-id/versions"
-        :group-id #"[^/]+" :artifact-id #"[^/]+"]
-       [group-id artifact-id]
-       (list-versions group-id artifact-id))
+   (GET ["/:artifact-id/versions" :artifact-id #"[^/]+"] [artifact-id]
+        (list-versions artifact-id artifact-id))
+   (GET ["/:group-id/:artifact-id/versions"
+         :group-id #"[^/]+" :artifact-id #"[^/]+"]
+        [group-id artifact-id]
+        (list-versions group-id artifact-id))
 
-  (GET ["/:artifact-id/versions/:version"
-        :artifact-id #"[^/]+" :version #"[^/]+"]
-       [artifact-id version]
-       (show-version artifact-id artifact-id version))
-  (GET ["/:group-id/:artifact-id/versions/:version"
-        :group-id #"[^/]+" :artifact-id #"[^/]+" :version #"[^/]+"]
-       [group-id artifact-id version]
-       (show-version group-id artifact-id version))
-
-  (GET ["/:artifact-id/latest-version.:file-format"
-        :artifact-id #"[^/]+"
-        :file-format #"(svg|json)$"]
-       [artifact-id file-format]
-       (response-based-on-format file-format artifact-id))
-
-  (GET ["/:group-id/:artifact-id/latest-version.:file-format"
-        :group-id #"[^/]+"
-        :artifact-id #"[^/]+"
-        :file-format #"(svg|json)$"]
-       [group-id artifact-id file-format]
-       (response-based-on-format file-format artifact-id group-id))
-
-  (POST ["/:group-id/:artifact-id/promote/:version"
+   (GET ["/:artifact-id/versions/:version"
+         :artifact-id #"[^/]+" :version #"[^/]+"]
+        [artifact-id version]
+        (show-version error-handler artifact-id artifact-id version))
+   (GET ["/:group-id/:artifact-id/versions/:version"
          :group-id #"[^/]+" :artifact-id #"[^/]+" :version #"[^/]+"]
         [group-id artifact-id version]
-        (auth/with-account
-          (auth/require-authorization
-           group-id
-           (if-let [jar (db/find-jar group-id artifact-id version)]
-             (do (promote/promote (set/rename-keys jar {:jar_name :name
-                                                        :group_name :group}))
-                 (response/redirect
-                  (common/jar-url {:group_name group-id
-                                   :jar_name artifact-id}))))))))
+        (show-version error-handler group-id artifact-id version))
+
+   (GET ["/:artifact-id/latest-version.:file-format"
+         :artifact-id #"[^/]+"
+         :file-format #"(svg|json)$"]
+        [artifact-id file-format]
+        (response-based-on-format file-format artifact-id))
+
+   (GET ["/:group-id/:artifact-id/latest-version.:file-format"
+         :group-id #"[^/]+"
+         :artifact-id #"[^/]+"
+         :file-format #"(svg|json)$"]
+        [group-id artifact-id file-format]
+        (response-based-on-format file-format artifact-id group-id))
+
+   (POST ["/:group-id/:artifact-id/promote/:version"
+          :group-id #"[^/]+" :artifact-id #"[^/]+" :version #"[^/]+"]
+         [group-id artifact-id version]
+         (auth/with-account
+           (auth/require-authorization
+            group-id
+            (if-let [jar (db/find-jar group-id artifact-id version)]
+              (do (promote/promote (set/rename-keys jar {:jar_name :name
+                                                         :group_name :group}))
+                  (response/redirect
+                   (common/jar-url {:group_name group-id
+                                    :jar_name artifact-id})))))))))

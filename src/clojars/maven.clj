@@ -1,11 +1,9 @@
 (ns clojars.maven
-  (:require [clojure.java.io :as io]
-            [clojars.config :refer [config]]
-            [clojure.string :refer [split]]
-            [clojars.errors :refer [report-error]])
-  (:import org.apache.maven.model.io.xpp3.MavenXpp3Reader
-           org.apache.maven.artifact.repository.metadata.io.xpp3.MetadataXpp3Reader
-           java.io.IOException))
+  (:require [clojars.config :refer [config]]
+            [clojure.java.io :as io]
+            [clojure.string :refer [split]])
+  (:import org.apache.maven.artifact.repository.metadata.io.xpp3.MetadataXpp3Reader
+           org.apache.maven.model.io.xpp3.MavenXpp3Reader))
 
 (defn model-to-map [model]
   {:name (or (.getArtifactId model)
@@ -59,14 +57,10 @@
     (io/file (directory-for jar) filename)))
 
 (defn jar-to-pom-map [{:keys [jar_name version] :as jar}]
-  (try
-    (let [pom-file (if (re-find #"SNAPSHOT$" version)
+  (let [pom-file (if (re-find #"SNAPSHOT$" version)
                      (snapshot-pom-file jar)
                      (io/file (directory-for jar) (format "%s-%s.%s" jar_name version "pom")))]
-      (pom-to-map (str pom-file)))
-    (catch IOException e
-      (report-error (ex-info "Failed to create pom map" jar e))
-      nil)))
+      (pom-to-map (str pom-file))))
 
 (defn github-info [pom-map]
   (let [scm (:scm pom-map)

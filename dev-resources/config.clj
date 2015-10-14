@@ -11,4 +11,6 @@
  :mail {:hostname "localhost"
         :from "noreply@clojars.org"
         :ssl false}
- :nrepl-port 7991}
+ :nrepl-port 7991
+ :yeller-token nil
+ :yeller-environment "development"}

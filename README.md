@@ -113,7 +113,7 @@ For now see [duct](https://github.com/weavejester/duct)
 ### Production system with development config
 
 Occasionally it can be useful to start a production system based on the development
-configuration. This can be done by `lein run`.
+configuration. This can be done by `YELLER_TOKEN="..." lein run`.
 
 Deployment
 ----------

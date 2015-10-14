@@ -1,15 +1,18 @@
 (ns clojars.routes.repo
-  (:require [clojars.auth :refer [with-account require-authorization]]
-            [clojars.db :as db]
-            [clojars.config :refer [config]]
-            [clojars.maven :as maven]
-            [clojars.errors :refer [report-error]]
-            [compojure.core :refer [defroutes PUT ANY]]
-            [compojure.route :refer [not-found]]
+  (:require [clojars
+             [auth :refer [require-authorization with-account]]
+             [config :refer [config]]
+             [db :as db]
+             [maven :as maven]
+             [ports :as ports]]
             [clojure.java.io :as io]
             [clojure.string :as string]
-            [ring.util.codec :as codec]
-            [ring.util.response :as response])
+            [compojure
+             [core :as compojure :refer [PUT]]
+             [route :refer [not-found]]]
+            [ring.util
+             [codec :as codec]
+             [response :as response]])
   (:import java.io.StringReader))
 
 (defn versions [group-id artifact-id]
@@ -57,23 +60,23 @@
       contents)
     body))
 
-(defmacro with-error-handling [& body]
+(defmacro with-error-handling [error-handler & body]
   `(try
      ~@body
      ;; should we only do 201 if the file didn't already exist?
      {:status 201 :headers {} :body nil}
      (catch Exception e#
-       (report-error e#)
+       (ports/report ~error-handler e#)
        (let [data# (ex-data e#)]
          {:status (or (:status data#) 403)
           :headers {"status-message" (:status-message data#)}
           :body (.getMessage e#)}))))
 
-(defmacro put-req [groupname & body]
+(defmacro put-req [error-handler groupname & body]
   `(with-account
      (require-authorization
       ~groupname
-      (with-error-handling
+      (with-error-handling ~error-handler
         ~@body))))
 
 (defn- validate-regex [x re message]
@@ -124,9 +127,10 @@
                   :file filename}
                  (ex-data e)))))))
 
-(defn- handle-versioned-upload [body group artifact version filename]
+(defn- handle-versioned-upload [error-handler body group artifact version filename]
   (let [groupname (string/replace group "/" ".")]
     (put-req
+      error-handler
       groupname
       (let [file (io/file (config :repo) group artifact version filename)
             info {:group groupname
@@ -138,32 +142,34 @@
         (try-save-to-file file (body-and-add-pom body filename info account))))))
 
 ;; web handlers
-(defroutes routes
-  (PUT ["/:group/:artifact/:file"
-        :group #".+" :artifact #"[^/]+" :file #"maven-metadata\.xml[^/]*"]
-       {body :body {:keys [group artifact file]} :params}
-       (if (snapshot-version? artifact)
-         ;; SNAPSHOT metadata will hit this route, but should be
-         ;; treated as a versioned file upload.
-         ;; See: https://github.com/ato/clojars-web/issues/319
-         (let [version artifact
-               group-parts (string/split group #"/")
-               group (string/join "/" (butlast group-parts))
-               artifact (last group-parts)]
-           (handle-versioned-upload body group artifact version file))
-         (let [groupname (string/replace group "/" ".")]
-           (put-req
+(defn routes [error-handler]
+  (compojure/routes
+   (PUT ["/:group/:artifact/:file"
+         :group #".+" :artifact #"[^/]+" :file #"maven-metadata\.xml[^/]*"]
+        {body :body {:keys [group artifact file]} :params}
+        (if (snapshot-version? artifact)
+          ;; SNAPSHOT metadata will hit this route, but should be
+          ;; treated as a versioned file upload.
+          ;; See: https://github.com/ato/clojars-web/issues/319
+          (let [version artifact
+                group-parts (string/split group #"/")
+                group (string/join "/" (butlast group-parts))
+                artifact (last group-parts)]
+            (handle-versioned-upload error-handler body group artifact version file))
+          (let [groupname (string/replace group "/" ".")]
+            (put-req
+             error-handler
              groupname
              (let [file (io/file (config :repo) group artifact file)]
                (db/check-and-add-group account groupname)
                (try-save-to-file file body))))))
-  (PUT ["/:group/:artifact/:version/:filename"
-        :group #"[^\.]+" :artifact #"[^/]+" :version #"[^/]+"
-        :filename #"[^/]+(\.pom|\.jar|\.sha1|\.md5|\.asc)$"]
-       {body :body {:keys [group artifact version filename]} :params}
-       (handle-versioned-upload body group artifact version filename))
-  (PUT "*" _ {:status 400 :headers {}})
-  (not-found "Page not found"))
+   (PUT ["/:group/:artifact/:version/:filename"
+         :group #"[^\.]+" :artifact #"[^/]+" :version #"[^/]+"
+         :filename #"[^/]+(\.pom|\.jar|\.sha1|\.md5|\.asc)$"]
+        {body :body {:keys [group artifact version filename]} :params}
+        (handle-versioned-upload error-handler body group artifact version filename))
+   (PUT "*" _ {:status 400 :headers {}})
+   (not-found "Page not found")))
 
 (defn wrap-file [app dir]
   (fn [req]

@@ -1,20 +1,29 @@
 (ns clojars.web.jar
-  (:require [clojars.web.common :refer [html-doc jar-link group-link
-                                        tag jar-url jar-name user-link
-                                        jar-fork? single-fork-notice
-                                        simple-date]]
-            hiccup.core
-            [hiccup.element :refer [link-to image]]
-            [hiccup.form :refer [submit-button]]
-            [clojars.web.safe-hiccup :refer [form-to]]
-            [clojars.maven :refer [jar-to-pom-map commit-url github-info]]
-            [clojars.auth :refer [authorized?]]
-            [clojars.db :refer [find-jar jar-exists]]
-            [clojars.promote :refer [blockers]]
-            [clojars.stats :as stats]
+  (:require [cheshire.core :as json]
+            [clojars
+             [auth :refer [authorized?]]
+             [db :refer [find-jar jar-exists]]
+             [maven :refer [commit-url github-info]]
+             [promote :refer [blockers]]
+             [stats :as stats]]
+            [clojars.web
+             [common
+              :refer
+              [html-doc
+               jar-fork?
+               jar-link
+               jar-name
+               jar-url
+               simple-date
+               single-fork-notice
+               tag
+               user-link]]
+             [safe-hiccup :refer [form-to]]]
             [clojure.set :as set]
-            [ring.util.codec :refer [url-encode]]
-            [cheshire.core :as json]))
+            [hiccup core 
+             [element :refer [image link-to]]
+             [form :refer [submit-button]]]
+            [ring.util.codec :refer [url-encode]]))
 
 (defn url-for [jar]
   (str (jar-url jar) "/versions/" (:version jar)))
@@ -82,9 +91,8 @@
                                    "/promote/" (:version jar))]
                        (submit-button "Promote")))))))
 
-(defn show-jar [account jar recent-versions count]
-  (let [pom-map (jar-to-pom-map jar)]
-    (html-doc account (str (:jar_name jar) " " (:version jar))
+(defn show-jar [account jar pom-map recent-versions count]
+  (html-doc account (str (:jar_name jar) " " (:version jar))
               [:div.light-article.row
                [:div#jar-title.col-sm-9.col-lg-9.col-xs-12.col-md-9
                 [:h1 (jar-link jar)]
@@ -181,8 +189,7 @@
                   (link-to (version-badge-url jar) "latest version")
                   " of your project on Github? Use the markdown code below!"]
                  [:textarea {:readonly "readonly" :rows 4} (badge-markdown jar)]
-                 ]
-                ]])))
+                 ]]]))
 
 (defn show-versions [account jar versions]
   (html-doc account (str "all versions of "(jar-name jar))
