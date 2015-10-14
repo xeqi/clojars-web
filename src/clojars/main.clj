@@ -1,9 +1,10 @@
 (ns clojars.main
   (:require [clojars
-             [admin :as admin]
              [config :as config]
              [system :as system]]
-            [clojars.component.yeller :refer [yeller-component]]
+            [clojars.component
+             [nrepl :refer [nrepl-server-component]]
+             [yeller :refer [yeller-component]]]
             [clojars.middleware.errors :as errors]
             [com.stuartsierra.component :as component]
             [meta-merge.core :refer [meta-merge]])
@@ -18,11 +19,13 @@
 
 (defn prod-system [config]
   (assoc (system/new-system config)
-         :error-handler (yeller-component (:error-handler config))))
+         :error-handler (yeller-component (:error-handler config))
+         :nrepl-server (nrepl-server-component {:port (:nrepl-port config)})))
+
+(def system (prod-system (system/translate config)))
 
 (defn -main [& args]
   (config/process-args args)
   (println "clojars-web: starting jetty on" (str "http://" (:bind config) ":" (:port config)))
-  (let [system (component/start (prod-system (system/translate config)))]
-    (Thread/setDefaultUncaughtExceptionHandler (get-in system [:error-handler :client])))
-  (admin/init))
+  (alter-var-root #'system component/start)
+  (Thread/setDefaultUncaughtExceptionHandler (get-in system [:error-handler :client])))

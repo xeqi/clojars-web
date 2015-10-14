@@ -1,12 +1,12 @@
 (ns clojars.admin
-  (:require [clojars.config :refer [config]]
-            [clojars.db :as db]
-            [clojars.search :as search]
+  (:require [clojars
+             [config :refer [config]]
+             [db :as db]
+             [search :as search]]
             [clojure.java.io :as io]
-            [clojure.string :as str]
-            [clojure.tools.nrepl.server :as nrepl])
-  (:import org.apache.commons.io.FileUtils
-           java.text.SimpleDateFormat))
+            [clojure.string :as str])
+  (:import java.text.SimpleDateFormat
+           org.apache.commons.io.FileUtils))
 
 (defn current-date-str []
   (.format (SimpleDateFormat. "yyyyMMdd") (db/get-time)))
@@ -61,8 +61,3 @@
           (apply db/delete-jars group-id jar-id (if version [version] []))
           (search/delete-from-index group-id jar-id)))
       (println "No artifacts found under" group-id jar-id version))))
-
-(defn init []
-  (when-let [port (:nrepl-port config)]
-    (printf "clojars-web: starting nrepl on localhost:%s\n" port)
-    (nrepl/start-server :port port :bind "127.0.0.1")))
