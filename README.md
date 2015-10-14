@@ -118,7 +118,7 @@ configuration. This can be done by `lein run`.
 Deployment
 ----------
 
-Also see [Configuration](#Configuration).
+Also see [Configuration](#configuration).
 
 1. Compile with: `lein uberjar`
 2. Run the migrations `java -cp target/clojars-web-*-standalone.jar clojure.main -m clojars.db.migrate`
