@@ -121,8 +121,9 @@ Deployment
 Also see [Configuration](#configuration).
 
 1. Compile with: `lein uberjar`
-2. Run the migrations `java -cp target/clojars-web-*-standalone.jar clojure.main -m clojars.db.migrate`
-3. Run the production system: `java -jar target/clojars-web-*-standalone.jar`
+2. Deploy `target/uberjar/clojars-web-*-standalone.jar` to the server
+3. Run the migrations `java -cp clojars-web-*-standalone.jar clojure.main -m clojars.db.migrate`
+4. Run the production system: `java -jar clojars-web-*-standalone.jar`
 
 Configuration
 -------------
