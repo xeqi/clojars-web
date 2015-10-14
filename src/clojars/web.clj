@@ -99,7 +99,7 @@
         (secure-session req)
         (regular-session req)))))
 
-(defroutes clojars-app
+(defn repo [deps]
   (context "/repo" _
            (-> repo/routes
                (friend/authenticate
@@ -109,7 +109,9 @@
                  :unauthenticated-handler
                  (partial workflows/http-basic-deny "clojars")})
                (repo/wrap-file (:repo config))
-               (repo/wrap-reject-double-dot)))
+               (repo/wrap-reject-double-dot))))
+
+(defn ui [deps]
   (-> main-routes
       (friend/authenticate
        {:credential-fn credential-fn
@@ -125,3 +127,7 @@
       (wrap-resource "public")
       (wrap-file-info)
       (wrap-exceptions)))
+
+(defroutes clojars-app
+  (repo {})
+  (ui {}))

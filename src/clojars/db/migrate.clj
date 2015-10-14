@@ -44,26 +44,31 @@
   (when-not (.exists (io/file db))
     (.mkdirs (.getParentFile (io/file db)))))
 
-(defn migrate [& migrations]
-  (ensure-db-directory-exists (:subname (config :db)))
-  (sql/with-connection (config :db)
-    (try (sql/create-table "migrations"
-                           [:name :varchar "NOT NULL"]
-                           [:created_at :timestamp
-                            "NOT NULL"  "DEFAULT CURRENT_TIMESTAMP"])
-         (catch Exception _))
-    (sql/transaction
-     (let [has-run? (sql/with-query-results run ["SELECT name FROM migrations"]
-                      (set (map :name run)))]
-       (doseq [m migrations
-               :when (not (has-run? (str (:name (meta m)))))]
-         (run-and-record m))))))
+(def all-migrations
+  [#'initial-schema
+   #'add-promoted-field
+   #'add-jars-index
+   #'add-pgp-key
+   #'add-added-by
+   #'add-password-reset-code
+   #'add-password-reset-code-created-at])
 
-(defn -main []
-  (migrate #'initial-schema
-           #'add-promoted-field
-           #'add-jars-index
-           #'add-pgp-key
-           #'add-added-by
-           #'add-password-reset-code
-           #'add-password-reset-code-created-at))
+(defn migrate [& migrations]
+  (let [migrations (if (empty? migrations)
+                     all-migrations
+                     migrations)]
+      (ensure-db-directory-exists (:subname (config :db)))
+      (sql/with-connection (config :db)
+        (try (sql/create-table "migrations"
+                               [:name :varchar "NOT NULL"]
+                               [:created_at :timestamp
+                                "NOT NULL"  "DEFAULT CURRENT_TIMESTAMP"])
+             (catch Exception _))
+        (sql/transaction
+         (let [has-run? (sql/with-query-results run ["SELECT name FROM migrations"]
+                          (set (map :name run)))]
+           (doseq [m migrations
+                   :when (not (has-run? (str (:name (meta m)))))]
+             (run-and-record m)))))))
+
+(defn -main [] (migrate))

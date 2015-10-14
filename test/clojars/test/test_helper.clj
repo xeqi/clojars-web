@@ -1,18 +1,19 @@
 (ns clojars.test.test-helper
   (import java.io.File)
-  (:require [clojars.db :as db]
+  (:require [clojars
+             [config :refer [config]]
+             [db :as db]
+             [search :as search]
+             [system :as system]
+             [web :as web]]
             [clojars.db.migrate :as migrate]
-            [clojars.config :refer [config]]
-            [clojars.web :as web]
-            [clojars.main :as main]
-            [korma.db :as kdb]
+            [clojure.java
+             [io :as io]
+             [jdbc :as jdbc]
+             [shell :as sh]]
             [clucy.core :as clucy]
-            [clojars.search :as search]
-            [clojure.test :as test]
-            [clojure.java.shell :as sh]
-            [clojure.java.io :as io]
-            [clojure.java.jdbc :as jdbc]
-            [ring.adapter.jetty :as jetty]))
+            [com.stuartsierra.component :as component]
+            [korma.db :as kdb]))
 
 (def local-repo (io/file (System/getProperty "java.io.tmpdir")
                          "clojars" "test" "local-repo"))
@@ -98,7 +99,8 @@
        (fn [app]
          #(binding [*out* (java.io.StringWriter.)]
             (app %)))))
-   (let [server (main/start-jetty 0)
+   (let [system (component/start (system/new-system config))
+         server (get-in system [:http :server])
          port (-> server .getConnectors first .getLocalPort)]
      (with-redefs [test-port port]
        (try
