@@ -13,8 +13,7 @@
                  [ring-middleware-format "0.5.0" :exclusions [org.clojure/tools.reader]]
                  [hiccup "1.0.5"]
                  [cheshire "5.4.0"]
-                 [korma "0.3.0-beta10"]
-                 [org.xerial/sqlite-jdbc "3.7.2"]
+                 [org.xerial/sqlite-jdbc "3.8.11.2"]
                  [org.apache.commons/commons-email "1.2"]
                  [commons-codec "1.8"]
                  [net.cgrand/regex "1.0.1"
@@ -35,7 +34,8 @@
                  [com.stuartsierra/component "0.2.3"]
                  [duct "0.4.4" :exclusions [com.stuartsierra/component]]
                  [meta-merge "0.1.1"]
-                 [ring-jetty-component "0.3.0"]]
+                 [ring-jetty-component "0.3.0"]
+                 [yesql "0.5.1"]]
   :profiles {:dev  [:project/dev  :profiles/dev]
              :test [:project/test :profiles/test]
              :uberjar {:aot :all}

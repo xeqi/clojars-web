@@ -1,12 +1,13 @@
 (ns  clojars.test.integration.sessions
-  (:require [clojars.db :as db]
+  (:require [clojars.config :as config]
+            [clojars.db :as db]
             [clojars.test.integration.steps :refer :all]
             [clojars.test.test-helper :as help]
             [clojure.test :refer :all]
             [kerodon
              [core :refer :all]
              [test :refer :all]]
-            [korma.core :as korma]
+            [clojure.java.jdbc :as jdbc]
             [net.cgrand.enlive-html :as enlive]))
 
 (use-fixtures :each help/default-fixture)
@@ -38,9 +39,8 @@
 (deftest user-with-password-wipe-gets-message
   (-> (session help/clojars-app)
       (register-as "fixture" "fixture@example.org" "password"))
-  (korma/update db/users
-                (korma/set-fields {:password ""})
-                (korma/where {:user "fixture"}))
+  (jdbc/db-do-commands (:db config/config)
+                       "update users set password='' where user = 'fixture'")
   (-> (session help/clojars-app)
       (login-as "fixture" "password")
       (follow-redirect)

@@ -14,8 +14,7 @@
              [shell :as sh]]
             [clucy.core :as clucy]
             [com.stuartsierra.component :as component]
-            [compojure.core :refer [defroutes]]
-            [korma.db :as kdb]))
+            [compojure.core :refer [defroutes]]))
 
 (def local-repo (io/file (System/getProperty "java.io.tmpdir")
                          "clojars" "test" "local-repo"))
@@ -84,11 +83,9 @@
      (delete-file-recursively (io/file (config :stats-dir)))
      (.mkdirs (io/file (config :stats-dir)))
      (make-download-count! {})
-     (with-redefs [kdb/_default (atom {:pool (:db config)})]
-       (jdbc/with-connection (:pool @kdb/_default)
-         (jdbc/do-commands
-          "delete from users;" "delete from jars;" "delete from groups;"))
-       (f)))))
+     (jdbc/db-do-commands (:db config)
+                          "delete from users;" "delete from jars;" "delete from groups;")
+     (f))))
 
 (defn index-fixture [f]
   (make-index! [])

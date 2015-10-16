@@ -5,16 +5,18 @@
             [clojars.search :as search]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [korma.core :refer [delete]])
+            [yesql.core :refer [require-sql]])
   (:import [org.apache.maven.artifact.repository.metadata Metadata Versioning]
            [org.apache.maven.artifact.repository.metadata.io.xpp3
             MetadataXpp3Reader
             MetadataXpp3Writer]))
 
+(require-sql ["queries/sqlite-queryfile.sql" :as sql])
+
 (defn reset-db! []
-  (delete db/jars)
-  (delete db/groups)
-  (delete db/users))
+  (sql/clear-jars!)
+  (sql/clear-groups!)
+  (sql/clear-users!))
 
 (defn add-test-users
   "Adds n test users of the form test0/test0."
