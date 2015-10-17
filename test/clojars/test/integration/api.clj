@@ -12,6 +12,7 @@
 (use-fixtures :each
   help/default-fixture
   help/with-clean-database
+  help/with-index
   help/run-test-app)
 
 (defn get-api [parts & [opts]]

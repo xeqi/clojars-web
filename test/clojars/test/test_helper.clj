@@ -2,7 +2,6 @@
   (import java.io.File)
   (:require [clojars
              [config :refer [config]]
-             [search :as search]
              [system :as system]
              [web :refer [repo ui]]]
             [clojars.component.lossy-handler :as lossy]
@@ -25,7 +24,6 @@
     :db {:uri "jdbc:sqlite::memory:"}
     :repo "data/test/repo"
     :stats-dir "data/test/stats"
-    :index-path "data/test/index"
     :bcrypt-work-factor 12
     :mail {:hostname "smtp.gmail.com"
            :from "noreply@clojars.org"
@@ -52,16 +50,6 @@
   (spit (io/file (config :stats-dir) "all.edn")
         (pr-str m)))
 
-(defn make-index! [v]
-  (delete-file-recursively (io/file (config :index-path)))
-  (with-open [index (clucy/disk-index (config :index-path))]
-    (if (empty? v)
-      (do (clucy/add index {:dummy true})
-          (clucy/search-and-delete index "dummy:true"))
-      (binding [clucy/*analyzer* search/analyzer]
-        (doseq [a v]
-          (clucy/add index a))))))
-
 (defn default-fixture [f]
   (using-test-config
    (fn []
@@ -71,9 +59,6 @@
      (make-download-count! {})
      (f))))
 
-(defn index-fixture [f]
-  (make-index! [])
-  (f))
 
 (declare thread-pool)
 (declare database)
@@ -83,14 +68,22 @@
     (with-redefs [database (:spec thread-pool)]
       (with-out-str
         (migrate/migrate database))
-      (f)
-      (component/stop thread-pool))))
+      (try
+        (f)
+        (finally
+          (component/stop thread-pool))))))
 
-(declare test-port)
+(declare index)
+
+(defn with-index [f]
+  (with-open [mem-index (clucy/memory-index)]
+    (with-redefs [index {:index mem-index}]
+      (f))))
 
 (defn clojars-ui []
   (ui {:error-handler (lossy/->LossyHandler)
-       :db database}))
+       :db database
+       :index index}))
 
 (defn clojars-app []
   (let [error-handler (lossy/->LossyHandler)]
@@ -100,9 +93,12 @@
      (ui {:error-handler error-handler
           :db database}))))
 
+(declare test-port)
+
 (defn run-test-app
   [f]
   (let [system (component/start (assoc (system/new-system test-config)
+                                       :index index
                                        :db thread-pool
                                        :error-handler (lossy/->LossyHandler)))
         server (get-in system [:http :server])

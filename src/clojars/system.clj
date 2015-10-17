@@ -1,8 +1,9 @@
 (ns clojars.system
   (:require [clojars
-             [ports :as ports]
+             [config :refer [config]]
              [ring-servlet-patch :as patch]
              [web :as web]]
+            [clojars.component.lucene :refer [lucene-component]]
             [com.stuartsierra.component :as component]
             [duct.component
              [endpoint :refer [endpoint-component]]
@@ -27,7 +28,8 @@
          :http (jetty-server (:http config))
          :ui   (endpoint-component web/ui)
          :repo (endpoint-component web/repo)
-         :db   (hikaricp (:db config)))
+         :db   (hikaricp (:db config))
+         :index (lucene-component (:index-path config)))
         (component/system-using
          {:http [:app]
           :app  [:repo :ui :error-handler]

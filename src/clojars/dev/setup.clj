@@ -1,15 +1,16 @@
-(ns clojars.dev.setup
+(ns ^{:doc "Tools to setup a dev db."}
+  clojars.dev.setup
   "Tools to setup a dev db."
-  (:require [clojars.config :refer [config]]
-            [clojars.db :as db]
-            [clojars.search :as search]
+  (:require [clojars
+             [config :refer [config]]
+             [db :as db]
+             [search :as search]]
+            [clojars.db.sql :as sql]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojars.db.sql :as sql])
+            [clucy.core :as clucy])
   (:import [org.apache.maven.artifact.repository.metadata Metadata Versioning]
-           [org.apache.maven.artifact.repository.metadata.io.xpp3
-            MetadataXpp3Reader
-            MetadataXpp3Writer]))
+           [org.apache.maven.artifact.repository.metadata.io.xpp3 MetadataXpp3Reader MetadataXpp3Writer]))
 
 (defn reset-db! [db]
   (sql/clear-jars! {} {:connection db})
@@ -97,5 +98,6 @@
       (println "==> Importing" repo "into the db...")
       (import-repo db repo test-users))
     (println "==> Indexing" repo "...")
-    (search/index-repo repo))
+    (with-open [index (clucy/disk-index (config :index-path))]
+      (search/index-repo index repo)))
   (.shutdown (db/write-executor)))

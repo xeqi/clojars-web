@@ -35,11 +35,10 @@
 
 (def renames {:name :artifact-id :group :group-id})
 
-(defn delete-from-index [group-id & [artifact-id]]
-  (with-open [index (clucy/disk-index (config :index-path))]
-    (clucy/search-and-delete  index
-      (cond-> (str "group-id:" group-id)
-        artifact-id (str " AND artifact-id:" artifact-id)))))
+(defn delete-from-index [index group-id & [artifact-id]]
+  (clucy/search-and-delete index
+                           (cond-> (str "group-id:" group-id)
+                             artifact-id (str " AND artifact-id:" artifact-id))))
 
 (defn index-pom [index pom-file]
   (let [pom (-> (mvn/pom-to-map pom-file)
@@ -63,21 +62,20 @@
             (clucy/add index (with-meta doc field-settings)))
           (clucy/add index (with-meta doc field-settings)))))))
 
-(defn index-repo [root]
+(defn index-repo [index root]
   (let [indexed (atom 0)]
-    (with-open [index (clucy/disk-index (config :index-path))]
-      ;; searching with an empty index creates an exception
-      (clucy/add index {:dummy true})
-      (doseq [file (file-seq (io/file root))
-              :when (.endsWith (str file) ".pom")]
-        (swap! indexed inc)
-        (when (zero? (mod @indexed 100))
-          (println "Indexed" @indexed))
-        (try
-          (index-pom index file)
-          (catch Exception e
-              (println "Failed to index" file " - " (.getMessage e)))))
-      (clucy/search-and-delete index "dummy:true"))))
+    ;; searching with an empty index creates an exception
+    (clucy/add index {:dummy true})
+    (doseq [file (file-seq (io/file root))
+            :when (.endsWith (str file) ".pom")]
+      (swap! indexed inc)
+      (when (zero? (mod @indexed 100))
+        (println "Indexed" @indexed))
+      (try
+        (index-pom index file)
+        (catch Exception e
+          (println "Failed to index" file " - " (.getMessage e)))))
+    (clucy/search-and-delete index "dummy:true")))
 
 
 ;; We multiply this by the fraction of total downloads an item gets to
@@ -118,32 +116,32 @@
                     (download-score i))))))))))
 
 ; http://stackoverflow.com/questions/963781/how-to-achieve-pagination-in-lucene
-(defn search [query & {:keys [page] :or {page 1}}]
+(defn search [index query & {:keys [page] :or {page 1}}]
   (if (empty? query)
     []
-    (with-open [index (clucy/disk-index (config :index-path))]
-      (binding [clucy/*analyzer* analyzer]
-        (with-open [searcher (IndexSearcher. index)]
-          (let [per-page 24
-                offset (* per-page (- page 1))
-                parser (QueryParser. clucy/*version*
-                                     "_content"
-                                     clucy/*analyzer*)
-                query  (.parse parser query)
-                query  (CustomScoreQuery. query (download-values))
-                hits   (.search searcher query (* per-page page))
-                highlighter (#'clucy/make-highlighter query searcher nil)]
-            (doall
-             (let [dhits (take per-page (drop offset (.scoreDocs hits)))]
-               (with-meta (for [hit dhits]
-                            (#'clucy/document->map
-                             (.doc searcher (.doc hit))
-                             (.score hit)
-                             highlighter))
-                 {:total-hits (.totalHits hits)
-                  :max-score (.getMaxScore hits)
-                  :results-per-page per-page
-                  :offset offset})))))))))
+    (binding [clucy/*analyzer* analyzer]
+      (with-open [searcher (IndexSearcher. index)]
+        (let [per-page 24
+              offset (* per-page (- page 1))
+              parser (QueryParser. clucy/*version*
+                                   "_content"
+                                   clucy/*analyzer*)
+              query  (.parse parser query)
+              query  (CustomScoreQuery. query (download-values))
+              hits   (.search searcher query (* per-page page))
+              highlighter (#'clucy/make-highlighter query searcher nil)]
+          (doall
+           (let [dhits (take per-page (drop offset (.scoreDocs hits)))]
+             (with-meta (for [hit dhits]
+                          (#'clucy/document->map
+                           (.doc searcher (.doc hit))
+                           (.score hit)
+                           highlighter))
+               {:total-hits (.totalHits hits)
+                :max-score (.getMaxScore hits)
+                :results-per-page per-page
+                :offset offset}))))))))
 
 (defn -main [& [repo]]
-  (index-repo (or repo (config :repo))))
+  (with-open [index (clucy/disk-index (config :index-path))]
+      (index-repo index (or repo (config :repo)))))

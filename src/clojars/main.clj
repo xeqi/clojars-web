@@ -23,7 +23,7 @@
                                            :environment (:yeller-environment config)})
          :nrepl-server
          (component/using (nrepl-server-component {:port (:nrepl-port config)})
-                          [:db])))
+                          [:db :index])))
 
 (def system (prod-system config))
 

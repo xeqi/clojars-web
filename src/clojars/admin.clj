@@ -16,6 +16,7 @@
   (f/unparse custom-formatter (time/now)))
 
 (def ^:dynamic *db*)
+(def ^:dynamic *index*)
 
 (defn repo->backup [parts]
   (let [backup (doto (io/file (:deletion-backup-dir config))
@@ -48,7 +49,7 @@
         (repo->backup [group-id])
         (db/delete-jars *db* group-id)
         (db/delete-groups *db* group-id)
-        (search/delete-from-index group-id)))
+        (search/delete-from-index *index* group-id)))
     (println "No group found under" group-id)))
 
 (defn delete-jars [group-id jar-id & [version]]
@@ -65,5 +66,5 @@
           (println "Deleting" pretty-coords)
           (repo->backup [group-id jar-id version])
           (apply db/delete-jars *db* group-id jar-id (if version [version] []))
-          (search/delete-from-index group-id jar-id)))
+          (search/delete-from-index *index* group-id jar-id)))
       (println "No artifacts found under" group-id jar-id version))))

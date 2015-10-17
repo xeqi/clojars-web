@@ -36,7 +36,7 @@
              [resource :refer [wrap-resource]]
              [session :refer [wrap-session]]]))
 
-(defn main-routes [error-handler db]
+(defn main-routes [error-handler db index]
   (routes
    (GET "/" _
         (try-account
@@ -48,7 +48,7 @@
          (let [validated-params (if (:page params)
                                   (assoc params :page (Integer. (:page params)))
                                   params)]
-           (search account validated-params))))
+           (search index account validated-params))))
    (GET "/projects" {:keys [params]}
         (try-account
          (browse db account params)))
@@ -119,9 +119,10 @@
                  (repo/wrap-file (:repo config))
                  (repo/wrap-reject-double-dot)))))
 
-(defn ui [{:keys [error-handler db]}]
-  (let [db (:spec db db)]
-    (-> (main-routes error-handler db)
+(defn ui [{:keys [error-handler db index]}]
+  (let [db (:spec db db)
+        index (:index index)]
+    (-> (main-routes error-handler db index)
         (friend/authenticate
          {:credential-fn (credential-fn db)
           :workflows [(workflows/interactive-form)

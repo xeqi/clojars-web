@@ -13,8 +13,8 @@
 
 (use-fixtures :each
   help/default-fixture
-  help/index-fixture
   help/with-clean-database
+  help/with-index
   help/run-test-app)
 
 (deftest user-can-register-and-deploy
