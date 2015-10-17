@@ -135,9 +135,7 @@ Options may be read from a file by putting a file named
 `config.clj` on the classpath.  The config file should be a bare
 Clojure map:
 
-    {:db {:classname "org.sqlite.JDBC"
-          :subprotocol "sqlite"
-          :subname "data/dev_db"}
+    {:db {:uri "jdbc:sqlite:data/dev_db"}
      :repo "data/dev_repo"
      :bcrypt-work-factor 12
      :mail {:hostname "localhost"

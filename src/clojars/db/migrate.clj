@@ -43,10 +43,6 @@
                [(str (:name (meta migration)))
                 (Timestamp. (System/currentTimeMillis))]))
 
-(defn- ensure-db-directory-exists [db]
-  (when-not (.exists (io/file db))
-    (.mkdirs (.getParentFile (io/file db)))))
-
 (def all-migrations
   [#'initial-schema
    #'add-promoted-field
@@ -56,18 +52,17 @@
    #'add-password-reset-code
    #'add-password-reset-code-created-at])
 
-(defn migrate [& migrations]
+(defn migrate [db & migrations]
   (let [migrations (if (empty? migrations)
                      all-migrations
                      migrations)]
-    (ensure-db-directory-exists (:subname (config :db)))
-    (try (sql/db-do-commands (:db config)
+    (try (sql/db-do-commands db
                              (sql/create-table-ddl "migrations"
                                                    [:name :varchar "NOT NULL"]
                                                    [:created_at :timestamp
                                                     "NOT NULL"  "DEFAULT CURRENT_TIMESTAMP"])) 
          (catch Exception _))
-    (sql/with-db-transaction [trans (:db config)]
+    (sql/with-db-transaction [trans db]
       (let [has-run? (sql/query trans ["SELECT name FROM migrations"]
                                 :row-fn :name
                                 :result-set-fn set)]
@@ -75,4 +70,4 @@
                :when (not (has-run? (str (:name (meta m)))))]
          (run-and-record m trans))))))
 
-(defn -main [] (migrate))
+(defn -main [] (migrate (get-in config [:db :uri])))

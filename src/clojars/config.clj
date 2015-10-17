@@ -7,9 +7,7 @@
 (def default-config
   {:port 8080
    :bind "0.0.0.0"
-   :db {:classname "org.sqlite.JDBC"
-        :subprotocol "sqlite"
-        :subname "data/db"}
+   :db {:uri "jdbc:sqlite:data/db"}
    :base-url "https://clojars.org"
    :stats-dir "data/stats"
    :index-path "data/index"
@@ -57,7 +55,7 @@
   [["CONFIG_FILE" :config-file]
    ["PORT" :port #(Integer/parseInt %)]
    ["BIND" :bind]
-   ["DATABASE_URL" :db]
+   ["DATABASE_URL" :db #(hash-map :uri (if (.startsWith % "jdbc:") % (str "jdbc:" %)))]
    ["MAIL_URL" :mail parse-mail-uri]
    ["REPO" :repo]
    ["DELETION_BACKUP_DIR" :deletion-backup-dir]

@@ -1,19 +1,31 @@
 (ns clojars.component.nrepl
-  (:require [clojure.tools.nrepl.server :as nrepl-server]
+  (:require [clojars.admin :as admin]
+            [clojure.tools.nrepl
+             [server :refer [default-handler start-server stop-server]]]
             [com.stuartsierra.component :as component]))
 
-(defrecord NreplServer [port]
+(defn bind-components-for-global-admin-functions [db]
+  (with-meta
+    (fn [h]
+      (fn [{:keys [session] :as msg}]
+        (swap! session assoc #'admin/*db* (:spec db))
+        (h msg)))
+    {:clojure.tools.nrepl.middleware/descriptor {:requires #{"clone"}
+                                                 :expects #{"eval"}}}))
+
+(defrecord NreplServer [port db]
   component/Lifecycle
   (start [t]
     (if-not (:server t)
       (do (printf "clojars-web: starting nrepl on localhost:%s\n" port)
           (assoc t :server
-                 (nrepl-server/start-server :port port
-                                            :bind "127.0.0.1")))
+                 (start-server :port port
+                               :bind "127.0.0.1"
+                               :handler (default-handler (bind-components-for-global-admin-functions db)))))
       t))
   (stop [t]
     (when-let [server (:server t)]
-      (nrepl-server/stop-server server))
+      (stop-server server))
     (assoc t :server nil)))
 
 (defn nrepl-server-component [options]

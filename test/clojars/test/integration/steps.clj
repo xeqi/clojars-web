@@ -1,6 +1,5 @@
 (ns clojars.test.integration.steps
   (:require [cemerick.pomegranate.aether :as aether]
-            [clojars.config :as config]
             [clojars.db :as db]
             [clojars.maven :as maven]
             [clojure.java.io :as io]
@@ -33,10 +32,10 @@
 (defn file-repo [path]
   (str (.toURI (File. path))))
 
-(defn inject-artifacts-into-repo! [user jar pom]
+(defn inject-artifacts-into-repo! [db user jar pom]
   (let [pom-file (io/resource pom)
         jarmap (maven/pom-to-map pom-file)]
-    (db/add-jar user jarmap)
+    (db/add-jar db user jarmap)
     (aether/deploy :coordinates [(keyword (:group jarmap)
                                           (:name jarmap))
                                  (:version jarmap)]

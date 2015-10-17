@@ -19,10 +19,13 @@
 
 (defn prod-system [config]
   (assoc (system/new-system config)
-         :error-handler (yeller-component (:error-handler config))
-         :nrepl-server (nrepl-server-component {:port (:nrepl-port config)})))
+         :error-handler (yeller-component {:token (:yeller-token config)
+                                           :environment (:yeller-environment config)})
+         :nrepl-server
+         (component/using (nrepl-server-component {:port (:nrepl-port config)})
+                          [:db])))
 
-(def system (prod-system (system/translate config)))
+(def system (prod-system config))
 
 (defn -main [& args]
   (config/process-args args)

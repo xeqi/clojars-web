@@ -3,7 +3,9 @@
             [clojure.test :refer :all]
             [ring.mock.request :refer [header request]]))
 
-(use-fixtures :each help/default-fixture)
+(use-fixtures :each
+  help/default-fixture
+  help/with-clean-database)
 
 (defn cookies [res]
   (flatten [(get-in res [:headers "Set-Cookie"])]))
@@ -15,16 +17,16 @@
   (every? #(.contains % "HttpOnly") (res cookies)))
 
 (deftest https-cookies-are-secure
-  (let [res (help/clojars-app (assoc (request :get "/") :scheme :https))]
+  (let [res ((help/clojars-ui) (assoc (request :get "/") :scheme :https))]
     (is (cookies-secure? res))
     (is (cookies-http-only? res))))
 
 (deftest forwarded-https-cookies-are-secure
-  (let [res (help/clojars-app (-> (request :get "/")
-                                       (header "x-forward-proto" "https")))]
+  (let [res ((help/clojars-ui) (-> (request :get "/")
+                                    (header "x-forward-proto" "https")))]
     (is (cookies-secure? res))
     (is (cookies-http-only? res))))
 
 (deftest regular-cookies-are-http-only
-  (let [res (help/clojars-app (request :get "/"))]
+  (let [res ((help/clojars-ui) (request :get "/"))]
     (is (cookies-http-only? res))))

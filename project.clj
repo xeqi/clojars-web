@@ -33,6 +33,7 @@
                  [mvxcvi/clj-pgp "0.8.0"]
                  [com.stuartsierra/component "0.2.3"]
                  [duct "0.4.4" :exclusions [com.stuartsierra/component]]
+                 [duct/hikaricp-component "0.1.0"]
                  [meta-merge "0.1.1"]
                  [ring-jetty-component "0.3.0"]
                  [yesql "0.5.1"]]

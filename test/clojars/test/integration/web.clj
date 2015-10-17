@@ -7,14 +7,17 @@
              [test :refer :all]]
             [net.cgrand.enlive-html :as enlive]))
 
-(use-fixtures :each help/default-fixture)
+(use-fixtures :each
+  help/default-fixture
+  help/with-clean-database)
 
 (deftest browse-page-renders-multiple-pages
   (doseq [i (range 21)]
     (db/add-jar
+     help/database
       "test-user"
       {:name (str "tester" i) :group "tester" :version "0.1" :description "Huh" :authors ["Zz"]}))
-   (-> (session help/clojars-app)
+   (-> (session (help/clojars-ui))
      (visit "/projects")
      (within [:div.light-article :> :h1]
              (has (text? "All projects")))
@@ -36,9 +39,10 @@
 (deftest browse-page-can-jump
   (doseq [i (range 100 125)]
     (db/add-jar
+     help/database
       "test-user"
       {:name (str "tester" i "a") :group "tester" :version "0.1" :description "Huh" :authors ["Zz"]}))
-  (-> (session help/clojars-app)
+  (-> (session (help/clojars-ui))
       (visit "/projects")
       (fill-in "Enter a few letters..." "tester/tester123")
       (press "Jump")

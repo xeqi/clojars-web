@@ -6,7 +6,8 @@
             [com.stuartsierra.component :as component]
             [duct.component
              [endpoint :refer [endpoint-component]]
-             [handler :refer [handler-component]]]
+             [handler :refer [handler-component]]
+             [hikaricp :refer [hikaricp]]]
             [meta-merge.core :refer [meta-merge]]
             [ring.component.jetty :refer [jetty-server]]))
 
@@ -15,23 +16,20 @@
    :http {:configurator patch/use-status-message-header}})
 
 (defn translate [config]
-  (let [{:keys [port bind yeller-token yeller-environment]} config]
+  (let [{:keys [port bind]} config]
     (assoc config
-           :http {:port port :host bind}
-           :error-handler {:token yeller-token
-                           :environment yeller-environment})))
+           :http {:port port :host bind})))
 
 (defn new-system [config]
-  (let [config (meta-merge base-env config)]
+  (let [config (meta-merge base-env (translate config))]
     (-> (component/system-map
          :app  (handler-component (:app config))
-         :error-handler (reify ports/ErrorHandler (-report [t e extra] "error-id"))
          :http (jetty-server (:http config))
          :ui   (endpoint-component web/ui)
-         :repo (endpoint-component web/repo))
+         :repo (endpoint-component web/repo)
+         :db   (hikaricp (:db config)))
         (component/system-using
          {:http [:app]
           :app  [:repo :ui :error-handler]
-          :ui   [:error-handler]
-          :repo [:error-handler]
-          :error-handler []}))))
+          :ui   [:error-handler :db]
+          :repo [:error-handler :db]}))))

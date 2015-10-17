@@ -36,13 +36,13 @@
              [resource :refer [wrap-resource]]
              [session :refer [wrap-session]]]))
 
-(defn main-routes [error-handler]
+(defn main-routes [error-handler db]
   (routes
    (GET "/" _
         (try-account
          (if account
-           (dashboard account)
-           (index-page account))))
+           (dashboard db account)
+           (index-page db account))))
    (GET "/search" {:keys [params]}
         (try-account
          (let [validated-params (if (:page params)
@@ -51,18 +51,18 @@
            (search account validated-params))))
    (GET "/projects" {:keys [params]}
         (try-account
-         (browse account params)))
+         (browse db account params)))
    (GET "/security" []
         (try-account
          (html-doc account "Security"
                    (raw (slurp (io/resource "security.html"))))))
    session/routes
-   group/routes
-   (artifact/routes error-handler)
+   (group/routes db)
+   (artifact/routes error-handler db)
    ;; user routes must go after artifact routes
    ;; since they both catch /:identifier
-   user/routes
-   api/routes
+   (user/routes db)
+   (api/routes db)
    (GET "/error" _ (throw (Exception. "What!? You really want an error?")))
    (PUT "*" _ {:status 405 :headers {} :body "Did you mean to use /repo?"})
    (ANY "*" _
@@ -79,12 +79,12 @@
     (Thread/sleep (* failures failures)))
   (update-in attempts [user] (fnil inc 0)))
 
-(def credential-fn
+(defn credential-fn [db]
   (let [attempts (atom {})]
     (partial creds/bcrypt-credential-fn
              (fn [id]
                (if-let [{:keys [user password]}
-                        (db/find-user-by-user-or-email id)]
+                        (db/find-user-by-user-or-email db id)]
                  (when-not (empty? password)
                    (swap! attempts dissoc user)
                    {:username user :password password})
@@ -106,30 +106,32 @@
         (secure-session req)
         (regular-session req)))))
 
-(defn repo [{:keys [error-handler]}]
-  (context "/repo" _
-           (-> (repo/routes error-handler)
-               (friend/authenticate
-                {:credential-fn credential-fn
-                 :workflows [(workflows/http-basic :realm "clojars")]
-                 :allow-anon? false
-                 :unauthenticated-handler
-                 (partial workflows/http-basic-deny "clojars")})
-               (repo/wrap-file (:repo config))
-               (repo/wrap-reject-double-dot))))
+(defn repo [{:keys [error-handler db]}]
+  (let [db (:spec db db)]
+    (context "/repo" _
+             (-> (repo/routes error-handler db)
+                 (friend/authenticate
+                  {:credential-fn (credential-fn db)
+                   :workflows [(workflows/http-basic :realm "clojars")]
+                   :allow-anon? false
+                   :unauthenticated-handler
+                   (partial workflows/http-basic-deny "clojars")})
+                 (repo/wrap-file (:repo config))
+                 (repo/wrap-reject-double-dot)))))
 
-(defn ui [{:keys [error-handler]}]
-  (-> (main-routes error-handler)
-      (friend/authenticate
-       {:credential-fn credential-fn
-        :workflows [(workflows/interactive-form)
-                    registration/workflow]})
-      (wrap-anti-forgery)
-      (wrap-x-frame-options)
-      (wrap-keyword-params)
-      (wrap-params)
-      (wrap-multipart-params)
-      (wrap-flash)
-      (wrap-secure-session)
-      (wrap-resource "public")
-      (wrap-file-info)))
+(defn ui [{:keys [error-handler db]}]
+  (let [db (:spec db db)]
+    (-> (main-routes error-handler db)
+        (friend/authenticate
+         {:credential-fn (credential-fn db)
+          :workflows [(workflows/interactive-form)
+                      (registration/workflow db)]})
+        (wrap-anti-forgery)
+        (wrap-x-frame-options)
+        (wrap-keyword-params)
+        (wrap-params)
+        (wrap-multipart-params)
+        (wrap-flash)
+        (wrap-secure-session)
+        (wrap-resource "public")
+        (wrap-file-info))))

@@ -2,19 +2,16 @@
   (import java.io.File)
   (:require [clojars
              [config :refer [config]]
-             [db :as db]
-             [ports :as ports]
              [search :as search]
              [system :as system]
-             [web :as web :refer [repo ui]]]
+             [web :refer [repo ui]]]
+            [clojars.component.lossy-handler :as lossy]
             [clojars.db.migrate :as migrate]
-            [clojure.java
-             [io :as io]
-             [jdbc :as jdbc]
-             [shell :as sh]]
+            [clojure.java.io :as io]
             [clucy.core :as clucy]
             [com.stuartsierra.component :as component]
-            [compojure.core :refer [defroutes]]))
+            [compojure.core :as compojure]
+            [duct.component.hikaricp :refer [hikaricp]]))
 
 (def local-repo (io/file (System/getProperty "java.io.tmpdir")
                          "clojars" "test" "local-repo"))
@@ -25,9 +22,7 @@
   (system/translate
    {:app {:middleware []}
     :port 0
-    :db {:classname "org.sqlite.JDBC"
-         :subprotocol "sqlite"
-         :subname "data/test/db"}
+    :db {:uri "jdbc:sqlite::memory:"}
     :repo "data/test/repo"
     :stats-dir "data/test/stats"
     :index-path "data/test/index"
@@ -53,14 +48,6 @@
           (delete-file-recursively child)))
       (io/delete-file f))))
 
-(defonce migrate
-  (delay
-   (let [db (:subname (:db config))]
-     (when-not (.exists (io/file db))
-       (.mkdirs (.getParentFile (io/file db)))
-       (sh/sh "sqlite3" db :in (slurp "clojars.sql"))))
-   (migrate/-main)))
-
 (defn make-download-count! [m]
   (spit (io/file (config :stats-dir) "all.edn")
         (pr-str m)))
@@ -78,28 +65,46 @@
 (defn default-fixture [f]
   (using-test-config
    (fn []
-     (force migrate)
      (delete-file-recursively (io/file (config :repo)))
      (delete-file-recursively (io/file (config :stats-dir)))
      (.mkdirs (io/file (config :stats-dir)))
      (make-download-count! {})
-     (jdbc/db-do-commands (:db config)
-                          "delete from users;" "delete from jars;" "delete from groups;")
      (f))))
 
 (defn index-fixture [f]
   (make-index! [])
   (f))
 
+(declare thread-pool)
+(declare database)
+
+(defn with-clean-database [f]
+  (with-redefs [thread-pool (component/start (hikaricp (:db config)))]
+    (with-redefs [database (:spec thread-pool)]
+      (with-out-str
+        (migrate/migrate database))
+      (f)
+      (component/stop thread-pool))))
+
 (declare test-port)
 
-(defroutes clojars-app
-  (repo {:error-handler (reify ports/ErrorHandler (-report [t e extra] "error-id"))})
-  (ui {}))
+(defn clojars-ui []
+  (ui {:error-handler (lossy/->LossyHandler)
+       :db database}))
+
+(defn clojars-app []
+  (let [error-handler (lossy/->LossyHandler)]
+    (compojure/routes
+     (repo {:error-handler error-handler
+            :db database})
+     (ui {:error-handler error-handler
+          :db database}))))
 
 (defn run-test-app
   [f]
-  (let [system (component/start (system/new-system test-config))
+  (let [system (component/start (assoc (system/new-system test-config)
+                                       :db thread-pool
+                                       :error-handler (lossy/->LossyHandler)))
         server (get-in system [:http :server])
         port (-> server .getConnectors first .getLocalPort)]
     (with-redefs [test-port port]

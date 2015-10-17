@@ -53,10 +53,10 @@
       maven/pom-to-map
       (merge info)))
 
-(defn- body-and-add-pom [body filename info account]
+(defn- body-and-add-pom [db body filename info account]
   (if (pom? filename)
     (let [contents (slurp body)]
-      (db/add-jar account (get-pom-info contents info))
+      (db/add-jar db account (get-pom-info contents info))
       contents)
     body))
 
@@ -72,9 +72,10 @@
           :headers {"status-message" (:status-message data#)}
           :body (.getMessage e#)}))))
 
-(defmacro put-req [error-handler groupname & body]
+(defmacro put-req [db error-handler groupname & body]
   `(with-account
      (require-authorization
+      ~db
       ~groupname
       (with-error-handling ~error-handler
         ~@body))))
@@ -127,9 +128,10 @@
                   :file filename}
                  (ex-data e)))))))
 
-(defn- handle-versioned-upload [error-handler body group artifact version filename]
+(defn- handle-versioned-upload [error-handler db body group artifact version filename]
   (let [groupname (string/replace group "/" ".")]
     (put-req
+      db
       error-handler
       groupname
       (let [file (io/file (config :repo) group artifact version filename)
@@ -137,12 +139,12 @@
                   :name  artifact
                   :version version}]
         (validate-deploy groupname artifact version filename)
-        (db/check-and-add-group account groupname)
+        (db/check-and-add-group db account groupname)
 
-        (try-save-to-file file (body-and-add-pom body filename info account))))))
+        (try-save-to-file file (body-and-add-pom db body filename info account))))))
 
 ;; web handlers
-(defn routes [error-handler]
+(defn routes [error-handler db]
   (compojure/routes
    (PUT ["/:group/:artifact/:file"
          :group #".+" :artifact #"[^/]+" :file #"maven-metadata\.xml[^/]*"]
@@ -155,19 +157,20 @@
                 group-parts (string/split group #"/")
                 group (string/join "/" (butlast group-parts))
                 artifact (last group-parts)]
-            (handle-versioned-upload error-handler body group artifact version file))
+            (handle-versioned-upload error-handler db body group artifact version file))
           (let [groupname (string/replace group "/" ".")]
             (put-req
+             db
              error-handler
              groupname
              (let [file (io/file (config :repo) group artifact file)]
-               (db/check-and-add-group account groupname)
+               (db/check-and-add-group db account groupname)
                (try-save-to-file file body))))))
    (PUT ["/:group/:artifact/:version/:filename"
          :group #"[^\.]+" :artifact #"[^/]+" :version #"[^/]+"
          :filename #"[^/]+(\.pom|\.jar|\.sha1|\.md5|\.asc)$"]
         {body :body {:keys [group artifact version filename]} :params}
-        (handle-versioned-upload error-handler body group artifact version filename))
+        (handle-versioned-upload error-handler db body group artifact version filename))
    (PUT "*" _ {:status 400 :headers {}})
    (not-found "Page not found")))
 

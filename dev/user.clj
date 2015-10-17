@@ -1,19 +1,16 @@
 (ns user
-  (:require [clojure.repl :refer :all]
-            [clojure.pprint :refer [pprint]]
-            [clojure.tools.namespace.repl :refer [refresh]]
+  (:require [clojars
+             [config :as config]
+             [system :as system]]
+            [clojars.component.lossy-handler :as lossy]
+            [clojars.web.safe-hiccup :as safe-hiccup]
             [clojure.java.io :as io]
-            [com.stuartsierra.component :as component]
+            [clojure.tools.namespace.repl :refer [refresh]]
             [eftest.runner :as eftest]
+            [hiccup.page :as page]
             [meta-merge.core :refer [meta-merge]]
             [reloaded.repl :refer [system init start stop go reset]]
-            [clojars.config :as config]
-            [clojars.system :as system]
-            [clojars.db.migrate :refer [migrate]]
-            [ring.middleware.stacktrace :as stacktrace]
-            [hiccup.page :as page]
-            [hiccup.core :as hiccup]
-            [clojars.web.safe-hiccup :as safe-hiccup]))
+            [ring.middleware.stacktrace :as stacktrace]))
 
 (def doctype
   {:html5 (safe-hiccup/raw (page/doctype :html5))})
@@ -36,7 +33,8 @@ by default. If the view system is ever changed, remove this"
               dev-env))
 
 (defn new-system []
-  (system/new-system (system/translate config)))
+  (assoc (system/new-system (system/translate config))
+         :error-handler (lossy/->LossyHandler)))
 
 (ns-unmap *ns* 'test)
 
