@@ -1,15 +1,19 @@
 (ns clojars.admin
-  (:require [clojars
+  (:require [clj-time
+             [core :as time]
+             [format :as f]]
+            [clojars
              [config :refer [config]]
              [db :as db]
              [search :as search]]
             [clojure.java.io :as io]
             [clojure.string :as str])
-  (:import java.text.SimpleDateFormat
-           org.apache.commons.io.FileUtils))
+  (:import org.apache.commons.io.FileUtils))
+
+(def custom-formatter (f/formatter "yyyyMMdd"))
 
 (defn current-date-str []
-  (.format (SimpleDateFormat. "yyyyMMdd") (db/get-time)))
+  (f/unparse custom-formatter (time/now)))
 
 (defn repo->backup [parts]
   (let [backup (doto (io/file (:deletion-backup-dir config))

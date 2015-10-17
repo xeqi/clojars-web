@@ -1,8 +1,9 @@
 (ns clojars.test.unit.db
-  (:require [clojars.db :as db]
-            [clojure.java.jdbc :as jdbc]
+  (:require [clj-time
+             [coerce :as time.coerce]
+             [core :as time]]
+            [clojars.db :as db]
             [clojars.test.test-helper :as help]
-            [clj-time.core :as time]
             [clojure.test :refer :all]))
 
 (use-fixtures :each help/default-fixture help/index-fixture)
@@ -14,8 +15,7 @@
   (let [email "test@example.com"
         name "testuser"
         password "password"
-        pgp-key "aoeu"
-        ms (long 0)]
+        pgp-key "aoeu"]
       (is (db/add-user email name password pgp-key))
       (are [x] (submap {:email email
                         :user name}
@@ -47,24 +47,24 @@
         name "testuser"
         password "password"
         pgp-key "aoeu"
-        ms (long 0)
+        time (time/epoch)
         email2 "test2@example.com"
         name2 "testuser2"
         password2 "password2"
         pgp-key2 "aoeu2"]
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. ms))]
-      (is (db/add-user email name password pgp-key))
-      (with-redefs [db/get-time (fn [] (java.sql.Timestamp. (long 1)))]
-        (is (db/update-user name email2 name2 password2 pgp-key2))
-        (are [x] (submap {:email email2
-                          :user name2
-                          :pgp_key pgp-key2
-                          :created ms}
-                         x)
-             (db/find-user name2)
-             (db/find-user-by-user-or-email name2)
-             (db/find-user-by-user-or-email email2)))
-      (is (not (db/find-user name))))))
+    (time/do-at time
+                (is (db/add-user email name password pgp-key)))
+    (time/do-at (-> time (time/plus (-> 1 time/seconds)))
+                (is (db/update-user name email2 name2 password2 pgp-key2)))
+    (are [x] (submap {:email email2
+                      :user name2
+                      :pgp_key pgp-key2
+                      :created (time.coerce/to-long time)}
+                     x)
+         (db/find-user name2)
+         (db/find-user-by-user-or-email name2)
+         (db/find-user-by-user-or-email email2))
+    (is (not (db/find-user name)))))
 
 (deftest added-users-are-added-only-to-their-org-clojars-group
   (let [email "test@example.com"
@@ -93,7 +93,7 @@
 
 (deftest added-jars-can-be-found
   (let [name "tester"
-        ms (long 0)
+        time (time/epoch)
         jarmap {:name name :group name :version "1.0"
                 :description "An dog awesome and non-existent test jar."
                 :homepage "http://clojars.org/"
@@ -103,11 +103,11 @@
                 :homepage "http://clojars.org/"
                 :scm nil
                 :user "test-user"
-                :created ms
+                :created (time.coerce/to-long time)
                 :group_name name
                 :authors "Alex Osborne, a little fish"
                 :description "An dog awesome and non-existent test jar."}]
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. ms))]
+    (time/do-at time
       (is (db/add-jar "test-user" jarmap))
       (are [x] (submap result x)
            (db/find-jar name name)
@@ -169,10 +169,10 @@
                 :version "2"
                 :user "test-user"
                 :group_name name }]
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 0))]
-      (is (db/add-jar "test-user" jarmap))
-      (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 1))]
-        (is (db/add-jar "test-user" (assoc jarmap :version "2")))))
+    (time/do-at (time/epoch)
+      (is (db/add-jar "test-user" jarmap)))
+    (time/do-at (time/plus (time/epoch) (time/seconds 1))
+      (is (db/add-jar "test-user" (assoc jarmap :version "2"))))
     (let [jars (db/jars-by-groupname name)]
       (dorun (map #(is (= %1 (select-keys %2 (keys %1)))) [result] jars))
       (is (= 1 (count jars))))))
@@ -180,13 +180,13 @@
 (deftest jars-with-multiple-versions
   (let [name "tester"
         jarmap {:name name :group name :version "1" }]
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 0))]
+    (time/do-at (time/epoch)
       (is (db/add-jar "test-user" jarmap)))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 1))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 1))
       (is (db/add-jar "test-user" (assoc jarmap :version "2"))))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 2))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 2))
       (is (db/add-jar "test-user" (assoc jarmap :version "3"))))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 3))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 3))
       (is (db/add-jar "test-user" (assoc jarmap :version "4-SNAPSHOT"))))
     (is (= 4 (db/count-versions name name)))
     (is (= ["4-SNAPSHOT" "3" "2" "1"]
@@ -204,13 +204,13 @@
     (db/add-member name "test-user" "some-dude")
     (db/add-member "tester-group" "test-user2" "some-dude")
     (db/add-member name "test-user2" "some-dude")
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 0))]
+    (time/do-at (time/epoch)
       (is (db/add-jar "test-user" jarmap)))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 1))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 1))
       (is (db/add-jar "test-user" (assoc jarmap :name "tester2"))))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 2))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 2))
       (is (db/add-jar "test-user2" (assoc jarmap :name "tester3"))))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 3))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 3))
       (is (db/add-jar "test-user2" (assoc jarmap :group "tester-group"))))
     (let [jars (db/jars-by-groupname name)]
       (dorun (map #(is (submap %1 %2))
@@ -227,9 +227,9 @@
                 :version "2"
                 :user "test-user"
                 :group_name name }]
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 0))]
+    (time/do-at (time/epoch)
       (is (db/add-jar "test-user" jarmap)))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 1))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 1))
       (is (db/add-jar "test-user" (assoc jarmap :version "2"))))
     (let [jars (db/jars-by-username "test-user")]
       (dorun (map #(is (= %1 (select-keys %2 (keys %1)))) [result] jars))
@@ -245,13 +245,13 @@
     (db/add-member name "test-user" "some-dude")
     (db/add-member "tester-group" "test-user" "some-dude")
     (db/add-member name "test-user2" "some-dude")
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 0))]
+    (time/do-at (time/epoch)
       (is (db/add-jar "test-user" jarmap)))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 1))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 1))
       (is (db/add-jar "test-user" (assoc jarmap :name "tester2"))))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 2))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 2))
       (is (db/add-jar "test-user2" (assoc jarmap :name "tester3"))))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 3))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 3))
       (is (db/add-jar "test-user" (assoc jarmap :group "tester-group"))))
     (let [jars (db/jars-by-username "test-user")]
       (dorun (map #(is (submap %1 %2))
@@ -300,7 +300,6 @@
 
 (deftest recent-jars-returns-6-most-recent-jars-only-most-recent-version
   (let [name "tester"
-        ms (long 0)
         jarmap {:name name :group name
                 :description "An dog awesome and non-existent test jar."
                 :homepage "http://clojars.org/"
@@ -314,19 +313,19 @@
                 :group_name name
                 :authors "Alex Osborne, a little fish"
                 :description "An dog awesome and non-existent test jar."}]
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. (long 1)))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 1))
       (db/add-jar "test-user" (assoc jarmap :name "1")))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. (long 2)))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 2))
       (db/add-jar "test-user" (assoc jarmap :name "2")))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. (long 3)))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 3))
       (db/add-jar "test-user" (assoc jarmap :name "3")))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. (long 4)))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 4))
       (db/add-jar "test-user" (assoc jarmap :name "4")))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. (long 5)))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 5))
       (db/add-jar "test-user" (assoc jarmap :version "5")))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. (long 6)))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 6))
       (db/add-jar "test-user" (assoc jarmap :name "6")))
-    (with-redefs [db/get-time (fn [] (java.sql.Timestamp. (long 7)))]
+    (time/do-at (time/plus (time/epoch) (time/seconds 7))
       (db/add-jar "test-user" (assoc jarmap :version "7")))
     (dorun (map #(is (submap %1 %2))
                 [(assoc result :version "7")

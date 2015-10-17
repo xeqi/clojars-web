@@ -1,9 +1,8 @@
 (ns clojars.test.unit.routes.api
-  (:require [clojars.db :as db]
-            [clojure.java.jdbc :as jdbc]
+  (:require [clj-time.core :as time]
+            [clojars.db :as db]
             [clojars.test.test-helper :as help]
-            [clojure.test :refer :all]
-            [clojars.routes.api :as api]))
+            [clojure.test :refer :all]))
 
 (use-fixtures :each help/default-fixture help/index-fixture)
 
@@ -11,7 +10,7 @@
 (def jarmap {:name jarname :group jarname})
 
 (defn add-jar [i version & {:as override}]
-  (with-redefs [db/get-time (fn [] (java.sql.Timestamp. i))]
+  (time/do-at (time/plus (time/epoch) (time/seconds i))
     (is (db/add-jar "test-user" (merge (assoc jarmap :version version) override)))))
 
 (deftest only-release
