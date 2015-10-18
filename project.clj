@@ -50,7 +50,8 @@
                                           [kerodon "0.7.0"
                                            :exclusions [org.apache.httpcomponents/httpcore]]
                                           [clj-http-lite "0.2.1"]
-                                          [ring/ring-devel "1.4.0"]]}
+                                          [ring/ring-devel "1.4.0"]
+                                          [com.google.jimfs/jimfs 1.0]]}
              :project/test  {}}
   :aliases {"migrate" ["run" "-m" "clojars.db.migrate"]}
   :main ^:skip-aot clojars.main

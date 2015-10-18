@@ -8,9 +8,9 @@
             [ring.middleware.format-response :refer [wrap-restful-response]]
             [ring.util.response :refer [response]]))
 
-(defn get-artifact [db group-id artifact-id]
+(defn get-artifact [db fs group-id artifact-id]
   (if-let [artifact (first (db/find-jars-information db group-id artifact-id))]
-    (let [stats (stats/all)]
+    (let [stats (stats/all fs)]
       (-> artifact
         (assoc
           :recent_versions (db/recent-versions db group-id artifact-id)
@@ -24,12 +24,12 @@
         response))
     (not-found nil)))
 
-(defn handler [db]
+(defn handler [db fs]
   (compojure/routes
    (context "/api" []
             (GET ["/groups/:group-id", :group-id #"[^/]+"] [group-id]
                  (if-let [jars (seq (db/find-jars-information db group-id))]
-                   (let [stats (stats/all)]
+                   (let [stats (stats/all fs)]
                      (response
                       (map (fn [jar]
                              (assoc jar
@@ -37,9 +37,9 @@
                            jars)))
                    (not-found nil)))
             (GET ["/artifacts/:artifact-id", :artifact-id #"[^/]+"] [artifact-id]
-                 (get-artifact db artifact-id artifact-id))
+                 (get-artifact db fs artifact-id artifact-id))
             (GET ["/artifacts/:group-id/:artifact-id", :group-id #"[^/]+", :artifact-id #"[^/]+"] [group-id artifact-id]
-                 (get-artifact db group-id artifact-id))
+                 (get-artifact db fs group-id artifact-id))
             (GET "/users/:username" [username]
                  (if-let [groups (seq (db/find-groupnames db username))]
                    (response {:groups groups})
@@ -47,6 +47,6 @@
             (ANY "*" _
                  (not-found nil)))))
 
-(defn routes [db]
-  (-> (handler db)
+(defn routes [db fs]
+  (-> (handler db fs)
       (wrap-restful-response :formats [:json :edn :yaml :transit-json])))

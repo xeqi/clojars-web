@@ -20,10 +20,11 @@
       (ports/report error-handler (ex-info "Failed to create pom map" artifact e))
       nil)))
 
-(defn show [db error-handler group-id artifact-id]
+(defn show [db fs error-handler group-id artifact-id]
   (if-let [artifact (db/find-jar db group-id artifact-id)]
     (auth/try-account
      (view/show-jar db
+                    fs
                     account
                     artifact
                     (find-pom error-handler artifact)
@@ -37,10 +38,11 @@
                          artifact
                          (db/recent-versions db group-id artifact-id)))))
 
-(defn show-version [db error-handler group-id artifact-id version]
+(defn show-version [db fs error-handler group-id artifact-id version]
   (if-let [artifact (db/find-jar db group-id artifact-id version)]
     (auth/try-account
      (view/show-jar db
+                    fs
                     account
                     artifact
                     (find-pom error-handler artifact)
@@ -60,13 +62,13 @@
                               (response/header "Cache-Control" "no-cache")
                               (response/content-type "image/svg+xml")))))
 
-(defn routes [error-handler db]
+(defn routes [error-handler db fs]
   (compojure/routes
    (GET ["/:artifact-id", :artifact-id #"[^/]+"] [artifact-id]
-        (show db error-handler artifact-id artifact-id))
+        (show db fs error-handler artifact-id artifact-id))
    (GET ["/:group-id/:artifact-id", :group-id #"[^/]+" :artifact-id #"[^/]+"]
         [group-id artifact-id]
-        (show db error-handler group-id artifact-id))
+        (show db fs error-handler group-id artifact-id))
 
    (GET ["/:artifact-id/versions" :artifact-id #"[^/]+"] [artifact-id]
         (list-versions db artifact-id artifact-id))
@@ -78,11 +80,11 @@
    (GET ["/:artifact-id/versions/:version"
          :artifact-id #"[^/]+" :version #"[^/]+"]
         [artifact-id version]
-        (show-version db error-handler artifact-id artifact-id version))
+        (show-version db fs error-handler artifact-id artifact-id version))
    (GET ["/:group-id/:artifact-id/versions/:version"
          :group-id #"[^/]+" :artifact-id #"[^/]+" :version #"[^/]+"]
         [group-id artifact-id version]
-        (show-version db error-handler group-id artifact-id version))
+        (show-version db fs error-handler group-id artifact-id version))
 
    (GET ["/:artifact-id/latest-version.:file-format"
          :artifact-id #"[^/]+"

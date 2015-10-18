@@ -1,16 +1,22 @@
 (ns clojars.test.test-helper
   (import java.io.File)
-  (:require [clojars
+  (:require [clojars.component.lossy-handler :as lossy]
+            [clojars
              [config :refer [config]]
              [system :as system]
              [web :refer [repo ui]]]
-            [clojars.component.lossy-handler :as lossy]
             [clojars.db.migrate :as migrate]
             [clojure.java.io :as io]
             [clucy.core :as clucy]
-            [com.stuartsierra.component :as component]
             [compojure.core :as compojure]
-            [duct.component.hikaricp :refer [hikaricp]]))
+            [com.stuartsierra.component :as component]
+            [duct.component.hikaricp :refer [hikaricp]])
+  (:import com.google.common.jimfs.Configuration
+           com.google.common.jimfs.Jimfs
+           java.nio.file.Files
+           java.nio.file.OpenOption
+           java.nio.file.StandardOpenOption
+           java.nio.file.attribute.FileAttribute))
 
 (def local-repo (io/file (System/getProperty "java.io.tmpdir")
                          "clojars" "test" "local-repo"))
@@ -46,8 +52,10 @@
           (delete-file-recursively child)))
       (io/delete-file f))))
 
-(defn make-download-count! [m]
-  (spit (io/file (config :stats-dir) "all.edn")
+(defn make-download-count! [fs m]
+  (spit (Files/newOutputStream
+         (.getPath fs (str (config :stats-dir)) (into-array String ["all.edn"]))
+         (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE]))
         (pr-str m)))
 
 (defn default-fixture [f]
@@ -56,7 +64,6 @@
      (delete-file-recursively (io/file (config :repo)))
      (delete-file-recursively (io/file (config :stats-dir)))
      (.mkdirs (io/file (config :stats-dir)))
-     (make-download-count! {})
      (f))))
 
 
@@ -80,10 +87,21 @@
     (with-redefs [index {:index mem-index}]
       (f))))
 
+(declare fs)
+
+(defn with-memory-fs [f]
+  (with-redefs [fs (Jimfs/newFileSystem (Configuration/unix))]
+    (try
+      (Files/createDirectories (.getPath fs (config :stats-dir) (into-array String []))
+                               (into-array FileAttribute []))
+      (f)
+         (finally (.close fs)))))
+
 (defn clojars-ui []
   (ui {:error-handler (lossy/->LossyHandler)
        :db database
-       :index index}))
+       :index index
+       :fs fs}))
 
 (defn clojars-app []
   (let [error-handler (lossy/->LossyHandler)]
@@ -91,7 +109,9 @@
      (repo {:error-handler error-handler
             :db database})
      (ui {:error-handler error-handler
-          :db database}))))
+          :db database
+          :index index
+          :fs fs}))))
 
 (declare test-port)
 
@@ -100,6 +120,7 @@
   (let [system (component/start (assoc (system/new-system test-config)
                                        :index index
                                        :db thread-pool
+                                       :fs fs
                                        :error-handler (lossy/->LossyHandler)))
         server (get-in system [:http :server])
         port (-> server .getConnectors first .getLocalPort)]

@@ -5,10 +5,12 @@
 
 (use-fixtures :each
   help/default-fixture
-  help/with-clean-database)
+  help/with-clean-database
+  help/with-memory-fs)
 
 (deftest bad-homepage-url-shows-as-text
   (let [html (jar/show-jar help/database
+                           help/fs
                            nil {:homepage "something thats not a url"
                                    :created 3
                                    :version "1"
@@ -19,6 +21,7 @@
 
 (deftest pages-are-escaped
   (let [html (jar/show-jar help/database
+                           help/fs
                            nil {:homepage nil
                                    :created 3
                                    :version "<script>alert('hi')</script>"

@@ -1,14 +1,16 @@
 (ns clojars.stats
   (:require [clojars.config :as config]
-            [clojure.java.io :as io]
-            [clojure.core.memoize :as memo]))
+            [clojure.core.memoize :as memo]
+            [clojure.java.io :as io])
+  (:import java.nio.file.FileSystem
+           java.nio.file.Files
+           java.nio.file.LinkOption
+           java.nio.charset.Charset))
 
-(defn all* []
-  (let [path (str (config/config :stats-dir) "/all.edn")]
-    (if (.exists (io/as-file path))
-      (read (java.io.PushbackReader. (java.io.FileReader.
-                                      (str (config/config :stats-dir)
-                                           "/all.edn"))))
+(defn all* [^FileSystem fs]
+  (let [path (.getPath fs (config/config :stats-dir) (into-array String ["/all.edn"]))]
+    (if (Files/exists path (into-array LinkOption []))
+      (read (java.io.PushbackReader. (Files/newBufferedReader path (Charset/defaultCharset))))
       {})))
 
 (def all (memo/ttl all* :ttl/threshold (* 60 60 1000))) ;; 1 hour

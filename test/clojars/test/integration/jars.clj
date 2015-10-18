@@ -9,7 +9,8 @@
 
 (use-fixtures :each
   help/default-fixture
-  help/with-clean-database)
+  help/with-clean-database
+  help/with-memory-fs)
 
 (deftest jars-can-be-viewed
   (inject-artifacts-into-repo! help/database "someuser" "test.jar" "test-0.0.1/test.pom")

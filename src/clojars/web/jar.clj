@@ -91,13 +91,13 @@
                                    "/promote/" (:version jar))]
                        (submit-button "Promote")))))))
 
-(defn show-jar [db account jar pom-map recent-versions count]
+(defn show-jar [db fs account jar pom-map recent-versions count]
   (html-doc account (str (:jar_name jar) " " (:version jar))
               [:div.light-article.row
                [:div#jar-title.col-sm-9.col-lg-9.col-xs-12.col-md-9
                 [:h1 (jar-link jar)]
                 [:p.description (:description jar)]
-                (let [stats (stats/all)]
+                (let [stats (stats/all fs)]
                   [:ul#jar-info-bar.row
                    [:li.col-md-4.col-sm-4.col-xs-12.col-lg-4
                     (if-let [gh-info (github-info pom-map)]

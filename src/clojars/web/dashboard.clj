@@ -4,8 +4,8 @@
             [clojars.stats :as stats]
             [hiccup.element :refer [unordered-list link-to]]))
 
-(defn recent-jar [jar-map]
-  (let [stats (stats/all)
+(defn recent-jar [fs jar-map]
+  (let [stats (stats/all fs)
         description (:description jar-map)
         truncate-length 120]
     [:li.col-md-4.col-sm-6.col-xs-12.col-lg-4
@@ -20,7 +20,7 @@
                                                                    (:group_name jar-map)
                                                                    (:jar_name jar-map))]]]))
 
-(defn index-page [db account]
+(defn index-page [db fs account]
   (html-doc-with-large-header account nil
     [:article.row
      [:div.push-information.col-md-6.col-lg-6.col-sm-6.col-xs-12
@@ -39,7 +39,7 @@
     [:div.recent-jars-header-container.row
      [:h2.recent-jars-header.col-md-12.col-lg-12.col-sm-12.col-xs-12
       "Recently pushed projects"]]
-    [:ul.recent-jars-list.row (map recent-jar (recent-jars db))]))
+    [:ul.recent-jars-list.row (map #(recent-jar fs %) (recent-jars db))]))
 
 (defn dashboard [db account]
   (html-doc account "Dashboard"

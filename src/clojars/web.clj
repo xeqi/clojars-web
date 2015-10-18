@@ -36,19 +36,19 @@
              [resource :refer [wrap-resource]]
              [session :refer [wrap-session]]]))
 
-(defn main-routes [error-handler db index]
+(defn main-routes [error-handler db index fs]
   (routes
    (GET "/" _
         (try-account
          (if account
            (dashboard db account)
-           (index-page db account))))
+           (index-page db fs account))))
    (GET "/search" {:keys [params]}
         (try-account
          (let [validated-params (if (:page params)
                                   (assoc params :page (Integer. (:page params)))
                                   params)]
-           (search index account validated-params))))
+           (search index fs account validated-params))))
    (GET "/projects" {:keys [params]}
         (try-account
          (browse db account params)))
@@ -58,11 +58,11 @@
                    (raw (slurp (io/resource "security.html"))))))
    session/routes
    (group/routes db)
-   (artifact/routes error-handler db)
+   (artifact/routes error-handler db fs)
    ;; user routes must go after artifact routes
    ;; since they both catch /:identifier
    (user/routes db)
-   (api/routes db)
+   (api/routes db fs)
    (GET "/error" _ (throw (Exception. "What!? You really want an error?")))
    (PUT "*" _ {:status 405 :headers {} :body "Did you mean to use /repo?"})
    (ANY "*" _
@@ -119,10 +119,10 @@
                  (repo/wrap-file (:repo config))
                  (repo/wrap-reject-double-dot)))))
 
-(defn ui [{:keys [error-handler db index]}]
+(defn ui [{:keys [error-handler db index fs]}]
   (let [db (:spec db db)
         index (:index index)]
-    (-> (main-routes error-handler db index)
+    (-> (main-routes error-handler db index fs)
         (friend/authenticate
          {:credential-fn (credential-fn db)
           :workflows [(workflows/interactive-form)

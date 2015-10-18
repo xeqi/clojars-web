@@ -15,6 +15,7 @@
   help/default-fixture
   help/with-clean-database
   help/with-index
+  help/with-memory-fs
   help/run-test-app)
 
 (deftest user-can-register-and-deploy
