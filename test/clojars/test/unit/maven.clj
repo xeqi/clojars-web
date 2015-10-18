@@ -1,41 +1,49 @@
 (ns clojars.test.unit.maven
   (:use clojure.test clojars.maven)
   (:require [clojars.config :refer [config]]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [clojars.test.test-helper :as help])
+  (:import java.nio.file.FileSystems))
+
+(use-fixtures :each help/with-memory-fs)
 
 (deftest pom-to-map-returns-corrects-dependencies
   (is (=
         [{:group_name "org.clojure", :jar_name "clojure", :version "1.3.0-beta1" :scope "compile"}
          {:group_name "org.clojurer", :jar_name "clojure", :version "1.6.0" :scope "provided"}
          {:group_name "midje", :jar_name "midje", :version "1.3-alpha4", :scope "test"}]
-     (:dependencies (pom-to-map (.toString (io/resource "test-maven/test-maven.pom")))))))
+     (:dependencies (reader-to-map (io/reader (io/resource "test-maven/test-maven.pom")))))))
 
 (deftest pom-to-map-handles-group-and-version-inheritance
-  (let [m (pom-to-map (.toString (io/resource "test-maven/test-maven-child.pom")))]
+  (let [m (reader-to-map (io/reader (io/resource "test-maven/test-maven-child.pom")))]
     (is (= "0.0.4" (:version m)))
     (is (= "fake" (:group m)))
     (is (= "child" (:name m)))))
 
 (deftest directory-for-handles-normal-group-name
-  (is (= (io/file (config :repo) "fake" "test" "1.0.0")
-         (directory-for {:group_name "fake"
+  (is (= (.getPath help/fs (config :repo) (into-array String ["fake" "test" "1.0.0"]))
+         (directory-for help/fs
+                        {:group_name "fake"
                          :jar_name "test"
                          :version "1.0.0"}))))
 
 (deftest directory-for-handles-group-names-with-dots
-  (is (= (io/file (config :repo) "com" "novemberain" "monger" "1.2.0-alpha1")
-         (directory-for {:group_name "com.novemberain"
+  (is (= (.getPath help/fs (config :repo)
+                   (into-array String ["com" "novemberain" "monger" "1.2.0-alpha1"]))
+         (directory-for help/fs
+                        {:group_name "com.novemberain"
                          :jar_name "monger"
                          :version "1.2.0-alpha1"}))))
 
 (def snapshot "20120806.052549-1")
 
 (defn expected-file [& [d1 d2 d3 file :as args]]
-  (io/file (config :repo) d1 d2 d3 (str file "-" snapshot ".pom")))
+  (.getPath help/fs (config :repo)
+            (into-array String [d1 d2 d3 (str file "-" snapshot ".pom")])))
 
 (defn snapshot-pom-file-with [jar-map]
   (with-redefs [snapshot-version (constantly snapshot)]
-    (snapshot-pom-file jar-map)))
+    (snapshot-pom-file (directory-for help/fs jar-map) jar-map)))
 
 (deftest snapshot-pom-file-handles-single-digit-patch-version
   (is (=

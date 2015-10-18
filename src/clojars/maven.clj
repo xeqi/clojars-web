@@ -1,8 +1,9 @@
 (ns clojars.maven
   (:require [clojars.config :refer [config]]
-            [clojure.java.io :as io]
             [clojure.string :refer [split]])
-  (:import org.apache.maven.artifact.repository.metadata.io.xpp3.MetadataXpp3Reader
+  (:import java.nio.charset.Charset
+           java.nio.file.Files
+           org.apache.maven.artifact.repository.metadata.io.xpp3.MetadataXpp3Reader
            org.apache.maven.model.io.xpp3.MavenXpp3Reader))
 
 (defn model-to-map [model]
@@ -27,40 +28,47 @@
 
 (defn read-pom
   "Reads a pom file returning a maven Model object."
-  [file]
-  (with-open [reader (io/reader file)]
+  [reader]
+  (with-open [reader reader]
     (.read (MavenXpp3Reader.) reader)))
 
-(def pom-to-map (comp model-to-map read-pom))
+(defn path-to-reader [path]
+  (Files/newBufferedReader path (Charset/defaultCharset)))
+
+(def reader-to-map (comp model-to-map read-pom))
+
+(def pom-to-map (comp reader-to-map path-to-reader))
 
 (defn read-metadata
   "Reads a maven-metadata file returning a maven Metadata object."
-  [file]
-  (with-open [reader (io/reader file)]
+  [path]
+  (with-open [reader (Files/newBufferedReader path (Charset/defaultCharset))]
     (.read (MetadataXpp3Reader.) reader)))
 
 (defn snapshot-version
   "Get snapshot version from maven-metadata.xml used in pom filename"
-  [file]
-  (let [versioning (-> (read-metadata file) .getVersioning .getSnapshot)]
+  [path]
+  (let [versioning (-> (read-metadata path) .getVersioning .getSnapshot)]
     (str (.getTimestamp versioning) "-" (.getBuildNumber versioning))))
 
 (defn directory-for
   "Directory for a jar under repo"
-  [{:keys [group_name jar_name version]}]
-  (apply io/file (concat [(config :repo)] (split group_name #"\.") [jar_name version])))
+  [fs {:keys [group_name jar_name version]}]
+  (.getPath fs (config :repo)
+            (into-array String (concat (split group_name #"\.") [jar_name version]))))
 
-(defn snapshot-pom-file [{:keys [jar_name version] :as jar}]
-  (let [metadata-file (io/file (directory-for jar) "maven-metadata.xml")
-        snapshot (snapshot-version metadata-file)
+(defn snapshot-pom-file [parent {:keys [jar_name version] :as jar}]
+  (let [metadata-path (.resolve parent "maven-metadata.xml")
+        snapshot (snapshot-version metadata-path)
         filename (format "%s-%s-%s.pom" jar_name (re-find #"\S+(?=-SNAPSHOT$)" version) snapshot)]
-    (io/file (directory-for jar) filename)))
+    (.resolve parent filename)))
 
-(defn jar-to-pom-map [{:keys [jar_name version] :as jar}]
-  (let [pom-file (if (re-find #"SNAPSHOT$" version)
-                     (snapshot-pom-file jar)
-                     (io/file (directory-for jar) (format "%s-%s.%s" jar_name version "pom")))]
-      (pom-to-map (str pom-file))))
+(defn jar-to-pom-map [fs {:keys [jar_name version] :as jar}]
+  (let [parent (directory-for fs jar)
+        pom-path (if (re-find #"SNAPSHOT$" version)
+                     (snapshot-pom-file parent jar)
+                     (.resolve parent (format "%s-%s.%s" jar_name version "pom")))]
+      (pom-to-map pom-path)))
 
 (defn github-info [pom-map]
   (let [scm (:scm pom-map)

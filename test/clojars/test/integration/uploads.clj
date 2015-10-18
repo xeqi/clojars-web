@@ -9,7 +9,8 @@
             [kerodon
              [core :refer :all]
              [test :refer :all]]
-            [net.cgrand.enlive-html :as enlive]))
+            [net.cgrand.enlive-html :as enlive])
+  (:import java.nio.file.Files))
 
 (use-fixtures :each
   help/default-fixture
@@ -32,12 +33,13 @@
                         :password "password"}}
    :local-repo help/local-repo)
   (is (= 6
-         (count (.list (clojure.java.io/file (:repo config)
-                                             "org"
-                                             "clojars"
-                                             "dantheman"
-                                             "test"
-                                             "1.0.0")))))
+         (-> help/fs
+             (.getPath (:repo config)
+                       (into-array String ["org" "clojars" "dantheman" "test" "1.0.0"]))
+             Files/newDirectoryStream
+             .iterator
+             iterator-seq
+             count)))
   (is (= '{[org.clojars.dantheman/test "1.0.0"] nil}
          (aether/resolve-dependencies
           :coordinates '[[org.clojars.dantheman/test "1.0.0"]]

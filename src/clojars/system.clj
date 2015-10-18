@@ -36,4 +36,4 @@
          {:http [:app]
           :app  [:repo :ui :error-handler]
           :ui   [:error-handler :db :fs]
-          :repo [:error-handler :db]}))))
+          :repo [:error-handler :db :fs]}))))

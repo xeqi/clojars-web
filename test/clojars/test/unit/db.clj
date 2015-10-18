@@ -39,13 +39,15 @@
         password "password"
         pgp-key "aoeu"]
       (db/add-user help/database email name password pgp-key)
-      (let [reset-code (db/set-password-reset-code! help/database "test@example.com")]
+      (let [reset-code (time/do-at (time/epoch)
+                                   (db/set-password-reset-code! help/database "test@example.com"))]
         (is (submap {:email email
                      :user name
                      :password_reset_code reset-code}
-                    (db/find-user-by-password-reset-code help/database reset-code)))
+                    (time/do-at (time/epoch)
+                                (db/find-user-by-password-reset-code help/database reset-code))))
 
-        (time/do-at (-> 1 time/days time/from-now)
+        (time/do-at (time/plus (time/epoch) (-> 1 time/days) (time/seconds 1))
           (is (not (db/find-user-by-password-reset-code help/database reset-code)))))))
 
 (deftest updated-users-can-be-found

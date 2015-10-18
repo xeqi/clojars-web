@@ -60,11 +60,7 @@
 
 (defn default-fixture [f]
   (using-test-config
-   (fn []
-     (delete-file-recursively (io/file (config :repo)))
-     (delete-file-recursively (io/file (config :stats-dir)))
-     (.mkdirs (io/file (config :stats-dir)))
-     (f))))
+   (fn [] (f))))
 
 
 (declare thread-pool)
@@ -95,7 +91,7 @@
       (Files/createDirectories (.getPath fs (config :stats-dir) (into-array String []))
                                (into-array FileAttribute []))
       (f)
-         (finally (.close fs)))))
+      (finally (.close fs)))))
 
 (defn clojars-ui []
   (ui {:error-handler (lossy/->LossyHandler)
@@ -107,7 +103,8 @@
   (let [error-handler (lossy/->LossyHandler)]
     (compojure/routes
      (repo {:error-handler error-handler
-            :db database})
+            :db database
+            :fs fs})
      (ui {:error-handler error-handler
           :db database
           :index index

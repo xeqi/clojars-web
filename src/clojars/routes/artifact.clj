@@ -13,9 +13,9 @@
             [ring.util.response :as response])
   (:import java.io.IOException))
 
-(defn find-pom [error-handler artifact]
+(defn find-pom [fs error-handler artifact]
   (try
-    (jar-to-pom-map artifact)
+    (jar-to-pom-map fs artifact)
     (catch IOException e
       (ports/report error-handler (ex-info "Failed to create pom map" artifact e))
       nil)))
@@ -27,7 +27,7 @@
                     fs
                     account
                     artifact
-                    (find-pom error-handler artifact)
+                    (find-pom fs error-handler artifact)
                     (db/recent-versions db group-id artifact-id 5)
                     (db/count-versions db group-id artifact-id)))))
 
@@ -45,7 +45,7 @@
                     fs
                     account
                     artifact
-                    (find-pom error-handler artifact)
+                    (find-pom fs error-handler artifact)
                     (db/recent-versions db group-id artifact-id 5)
                     (db/count-versions db group-id artifact-id)))))
 
@@ -107,8 +107,9 @@
             db
             group-id
             (if-let [jar (db/find-jar db group-id artifact-id version)]
-              (do (promote/promote db (set/rename-keys jar {:jar_name :name
-                                                            :group_name :group}))
+              (do (promote/promote db fs
+                                   (set/rename-keys jar {:jar_name :name
+                                                         :group_name :group}))
                   (response/redirect
                    (common/jar-url {:group_name group-id
                                     :jar_name artifact-id})))))))))

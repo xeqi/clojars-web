@@ -12,36 +12,26 @@
              [route :refer [not-found]]]
             [ring.util
              [codec :as codec]
-             [response :as response]])
-  (:import java.io.StringReader))
+             [response :as response]]
+            [ring.util.time :as ring.time])
+  (:import java.io.StringReader
+           [java.nio.file Files LinkOption OpenOption StandardOpenOption]
+           java.nio.file.attribute.FileAttribute
+           java.util.Date))
 
-(defn versions [group-id artifact-id]
-  (->> (.listFiles (io/file (config :repo) group-id artifact-id))
-       (filter (memfn isDirectory))
-       (sort-by (comp - (memfn last-modified)))
-       (map (memfn getName))))
+(defn save-to-file [path input]
+  (Files/createDirectories (.getParent path)
+                           (into-array FileAttribute []))
+  (io/copy input
+           (Files/newOutputStream
+              path
+              (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE]))))
 
-(defn find-jar
-  ([group-id artifact-id]
-     (find-jar group-id artifact-id (first (versions group-id artifact-id))))
-  ([group-id artifact-id version]
-     (try
-       (maven/pom-to-map (io/file (config :repo) group-id artifact-id version
-                                  (format "%s-%s.pom" artifact-id version)))
-       (catch java.io.FileNotFoundException e
-         nil))))
-
-(defn save-to-file [sent-file input]
-  (-> sent-file
-      .getParentFile
-      .mkdirs)
-  (io/copy input sent-file))
-
-(defn- try-save-to-file [sent-file input]
+(defn- try-save-to-file [path input]
   (try
-    (save-to-file sent-file input)
+    (save-to-file path input)
     (catch java.io.IOException e
-      (.delete sent-file)
+      (Files/delete path)
       (throw e))))
 
 (defn- pom? [filename]
@@ -50,7 +40,7 @@
 (defn- get-pom-info [contents info]
   (-> contents
       StringReader.
-      maven/pom-to-map
+      maven/reader-to-map
       (merge info)))
 
 (defn- body-and-add-pom [db body filename info account]
@@ -88,14 +78,13 @@
 (defn snapshot-version? [version]
   (.endsWith version "-SNAPSHOT"))
 
-(defn assert-non-redeploy [group-id artifact-id version filename]
+(defn assert-non-redeploy [path version]
  (when (and (not (snapshot-version? version))
-         (.exists (io/file (config :repo) (string/replace group-id "." "/")
-                    artifact-id version filename)))
+         (Files/exists path (into-array LinkOption [])))
    (throw (ex-info "redeploying non-snapshots is not allowed (see http://git.io/vO2Tg)"
             {}))))
 
-(defn validate-deploy [group-id artifact-id version filename]
+(defn validate-deploy [path group-id artifact-id version filename]
   (try
     ;; We're on purpose *at least* as restrictive as the recommendations on
     ;; https://maven.apache.org/guides/mini/guide-naming-conventions.html
@@ -116,7 +105,7 @@
     (validate-regex version #"^[a-zA-Z0-9_.+-]+$"
       (str "version strings must consist solely of letters, "
         "numbers, dots, pluses, hyphens and underscores (see http://git.io/vO2TO)"))
-    (assert-non-redeploy group-id artifact-id version filename)
+    (assert-non-redeploy path version)
     (catch Exception e
       (throw (ex-info (.getMessage e)
                (merge
@@ -128,23 +117,23 @@
                   :file filename}
                  (ex-data e)))))))
 
-(defn- handle-versioned-upload [error-handler db body group artifact version filename]
+(defn- handle-versioned-upload [error-handler db fs body group artifact version filename]
   (let [groupname (string/replace group "/" ".")]
     (put-req
       db
       error-handler
       groupname
-      (let [file (io/file (config :repo) group artifact version filename)
+      (let [path (.getPath fs (config :repo) (into-array String [group artifact version filename]))
             info {:group groupname
                   :name  artifact
                   :version version}]
-        (validate-deploy groupname artifact version filename)
+        (validate-deploy path groupname artifact version filename)
         (db/check-and-add-group db account groupname)
-
-        (try-save-to-file file (body-and-add-pom db body filename info account))))))
+        (try-save-to-file path
+                          (body-and-add-pom db body filename info account))))))
 
 ;; web handlers
-(defn routes [error-handler db]
+(defn routes [error-handler db fs]
   (compojure/routes
    (PUT ["/:group/:artifact/:file"
          :group #".+" :artifact #"[^/]+" :file #"maven-metadata\.xml[^/]*"]
@@ -157,29 +146,59 @@
                 group-parts (string/split group #"/")
                 group (string/join "/" (butlast group-parts))
                 artifact (last group-parts)]
-            (handle-versioned-upload error-handler db body group artifact version file))
+            (handle-versioned-upload error-handler db fs body group artifact version file))
           (let [groupname (string/replace group "/" ".")]
             (put-req
              db
              error-handler
              groupname
-             (let [file (io/file (config :repo) group artifact file)]
+             (let [path (.getPath fs (config :repo) (into-array String [group artifact file]))]
                (db/check-and-add-group db account groupname)
-               (try-save-to-file file body))))))
+               (try-save-to-file path body))))))
    (PUT ["/:group/:artifact/:version/:filename"
          :group #"[^\.]+" :artifact #"[^/]+" :version #"[^/]+"
          :filename #"[^/]+(\.pom|\.jar|\.sha1|\.md5|\.asc)$"]
         {body :body {:keys [group artifact version filename]} :params}
-        (handle-versioned-upload error-handler db body group artifact version filename))
+        (handle-versioned-upload error-handler db fs body group artifact version filename))
    (PUT "*" _ {:status 400 :headers {}})
    (not-found "Page not found")))
 
-(defn wrap-file [app dir]
+
+(defn meta-data [path]
+  {:content (Files/newInputStream
+             path
+             (into-array OpenOption []))
+   :content-length (Files/size path)
+   :last-modified  (-> path
+                       (Files/getLastModifiedTime (into-array LinkOption [LinkOption/NOFOLLOW_LINKS]))
+                       .toMillis
+                       Date.)})
+
+(defn content-length [resp len]
+  (if len
+    (response/header resp "Content-Length" len)
+    resp))
+
+(defn last-modified [resp last-mod]
+  (if last-mod
+    (response/header resp "Last-Modified" (ring.time/format-date last-mod))
+    resp))
+
+(defn stream-response
+  [fs dir path]
+  (let [path (.getPath fs dir (into-array String [path]))]
+    (if (Files/exists path (into-array LinkOption [LinkOption/NOFOLLOW_LINKS]))
+      (let [data (meta-data path)]
+        (-> (response/response (:content data))
+            (content-length (:content-length data))
+            (last-modified (:last-modified data)))))))
+
+(defn wrap-file [app fs dir]
   (fn [req]
     (if-not (= :get (:request-method req))
       (app req)
       (let [path (codec/url-decode (:path-info req))]
-        (or (response/file-response path {:root dir})
+        (or (stream-response fs dir path)
             (app req))))))
 
 (defn wrap-reject-double-dot [f]

@@ -106,17 +106,17 @@
         (secure-session req)
         (regular-session req)))))
 
-(defn repo [{:keys [error-handler db]}]
+(defn repo [{:keys [error-handler db fs]}]
   (let [db (:spec db db)]
     (context "/repo" _
-             (-> (repo/routes error-handler db)
+             (-> (repo/routes error-handler db fs)
                  (friend/authenticate
                   {:credential-fn (credential-fn db)
                    :workflows [(workflows/http-basic :realm "clojars")]
                    :allow-anon? false
                    :unauthenticated-handler
                    (partial workflows/http-basic-deny "clojars")})
-                 (repo/wrap-file (:repo config))
+                 (repo/wrap-file fs (:repo config))
                  (repo/wrap-reject-double-dot)))))
 
 (defn ui [{:keys [error-handler db index fs]}]

@@ -1,6 +1,5 @@
 (ns clojars.db
   (:require [clojure.string :as str]
-            [clojure.java.io :as io]
             [clj-time.core :as time]
             [clj-time.jdbc]
             [clojars.config :refer [config]]
@@ -10,7 +9,6 @@
   (:import java.security.MessageDigest
            java.util.Date
            java.security.SecureRandom
-           java.io.File
            java.util.concurrent.Executors))
 
 (def reserved-names

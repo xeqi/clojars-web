@@ -40,10 +40,14 @@
 (deftest an-api-test
   (-> (session (help/clojars-ui))
       (register-as "dantheman" "test@example.org" "password"))
-  (inject-artifacts-into-repo! help/database "dantheman" "test.jar" "test-0.0.1/test.pom")
-  (inject-artifacts-into-repo! help/database "dantheman" "test.jar" "test-0.0.2/test.pom")
-  (inject-artifacts-into-repo! help/database "dantheman" "test.jar" "test-0.0.3-SNAPSHOT/test.pom")
-  (inject-artifacts-into-repo! help/database "dantheman" "test.jar" "test-0.0.3-SNAPSHOT/test.pom")
+  (inject-artifacts-into-repo! help/database help/fs
+                               "dantheman" "test.jar" "test-0.0.1/test.pom")
+  (inject-artifacts-into-repo! help/database help/fs
+                               "dantheman" "test.jar" "test-0.0.2/test.pom")
+  (inject-artifacts-into-repo! help/database help/fs
+                               "dantheman" "test.jar" "test-0.0.3-SNAPSHOT/test.pom")
+  (inject-artifacts-into-repo! help/database help/fs
+                               "dantheman" "test.jar" "test-0.0.3-SNAPSHOT/test.pom")
 
   (doseq [f ["application/json" "application/edn" "application/x-yaml" "application/transit+json"]]
     (testing f

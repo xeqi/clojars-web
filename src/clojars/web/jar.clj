@@ -73,16 +73,16 @@
 (defn promoted-at [jar]
   [:p (str "Promoted at " (java.util.Date. (:promoted_at jar)))])
 
-(defn promotion-issues [db jar]
-  (seq (blockers db (set/rename-keys jar {:group_name :group
-                                          :jar_name :name}))))
+(defn promotion-issues [db fs jar]
+  (seq (blockers db fs (set/rename-keys jar {:group_name :group
+                                             :jar_name :name}))))
 
-(defn promotion-details [db account jar]
+(defn promotion-details [db fs account jar]
   (when (authorized? db account (:group_name jar))
     (list [:h2 "Promotion"]
           (if (promoted? jar)
             (promoted-at jar)
-            (if-let [issues (promotion-issues db jar)]
+            (if-let [issues (promotion-issues db fs jar)]
               (list [:h3 "Issues Blocking Promotion"]
                     [:ul#blockers
                      (for [i issues]
@@ -153,7 +153,7 @@
                   (tag "</dependency>")]]
                 (list
                  (fork-notice jar)
-                 (promotion-details db account jar))]
+                 (promotion-details db fs account jar))]
                [:ul#jar-sidebar.col-sm-3.col-xs-12.col-md-3.col-lg-3
                 [:li
                  [:h4 "Pushed by"]

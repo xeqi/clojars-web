@@ -1,7 +1,6 @@
 (ns clojars.stats
   (:require [clojars.config :as config]
-            [clojure.core.memoize :as memo]
-            [clojure.java.io :as io])
+            [clojure.core.memoize :as memo])
   (:import java.nio.file.FileSystem
            java.nio.file.Files
            java.nio.file.LinkOption
