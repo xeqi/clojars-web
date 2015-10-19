@@ -20,10 +20,11 @@
   (let [extension (or extension "pom")]
     (Files/createDirectories (.getParent (path-for help/fs "robert" "hooke" version ""))
                              (into-array FileAttribute []))
-    (io/copy (io/reader (io/resource (str "hooke-" version "." extension)))
-             (Files/newOutputStream
-              (path-for help/fs "robert" "hooke" version extension)
-              (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE])))))
+    (with-open [o (Files/newOutputStream
+                   (path-for help/fs "robert" "hooke" version extension)
+                   (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE]))
+                r (io/reader (io/resource (str "hooke-" version "." extension)))]
+      (io/copy r o))))
 
 (deftest test-snapshot-blockers
   (is (= ["Snapshot versions cannot be promoted"]
@@ -51,13 +52,13 @@
 
 (deftest test-success
   (copy-resource "1.1.2")
-  (io/copy "dummy hooke jar file"
-           (Files/newOutputStream
-            (path-for help/fs "robert" "hooke" "1.1.2" "jar")
-            (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE])))
+  (with-open [o (Files/newOutputStream
+                 (path-for help/fs "robert" "hooke" "1.1.2" "jar")
+                 (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE]))]
+    (spit o "dummy hooke jar file"))
   (copy-resource "1.1.2" "jar.asc")
   (copy-resource "1.1.2" "pom.asc")
-  (db/add-user help/database "test@ex.com" "testuser" "password"
+  (db/add-user help/database 8 "test@ex.com" "testuser" "password"
                (slurp (io/resource "pubring.gpg")))
   (db/add-member help/database "robert" "testuser" nil)
   (is (empty? (blockers help/database
@@ -66,13 +67,14 @@
 
 (deftest test-failed-signature
   (copy-resource "1.1.2")
-  (io/copy "dummy hooke jar file corrupted"
-           (Files/newOutputStream
-            (path-for help/fs "robert" "hooke" "1.1.2" "jar")
-            (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE])))
+  (with-open [o (Files/newOutputStream
+                 (path-for help/fs "robert" "hooke" "1.1.2" "jar")
+                 (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE]))]
+    (spit o "dummy hooke jar file corrupted"))
+
   (copy-resource "1.1.2" "jar.asc")
   (copy-resource "1.1.2" "pom.asc")
-  (db/add-user help/database "test@ex.com" "testuser" "password"
+  (db/add-user help/database 8 "test@ex.com" "testuser" "password"
                (slurp (io/resource "pubring.gpg")))
   (db/add-member help/database "robert" "testuser" nil)
   (is (= [(str "Could not verify signature of "
@@ -84,13 +86,13 @@
 
 (deftest test-no-key
   (copy-resource "1.1.2")
-  (io/copy "dummy hooke jar file corrupted"
-           (Files/newOutputStream
-            (path-for help/fs "robert" "hooke" "1.1.2" "jar")
-            (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE])))
+  (with-open [o (Files/newOutputStream
+                 (path-for help/fs "robert" "hooke" "1.1.2" "jar")
+                 (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE]))]
+    (spit o "dummy hooke jar file corrupted"))
   (copy-resource "1.1.2" "jar.asc")
   (copy-resource "1.1.2" "pom.asc")
-  (db/add-user help/database "test@ex.com" "testuser" "password" "")
+  (db/add-user help/database 8 "test@ex.com" "testuser" "password" "")
   (db/add-member help/database "robert" "testuser" nil)
   (is (= [(str "Could not verify signature of "
                (config :repo) "/robert/hooke/1.1.2/hooke-1.1.2.jar. "

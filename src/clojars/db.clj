@@ -1,14 +1,9 @@
 (ns clojars.db
-  (:require [clojure.string :as str]
+  (:require [cemerick.friend.credentials :as creds]
             [clj-time.core :as time]
-            [clj-time.jdbc]
-            [clojars.config :refer [config]]
-            [clojure.java.jdbc :as jdbc]
             [clojars.db.sql :as sql]
-            [cemerick.friend.credentials :as creds])
-  (:import java.security.MessageDigest
-           java.util.Date
-           java.security.SecureRandom
+            [clojure.string :as str])
+  (:import java.security.SecureRandom
            java.util.concurrent.Executors))
 
 (def reserved-names
@@ -34,8 +29,8 @@
   [n]
   (str/join (repeatedly n #(rand-nth constituent-chars))))
 
-(defn bcrypt [s]
-  (creds/hash-bcrypt s :work-factor (:bcrypt-work-factor config)))
+(defn bcrypt [s work-factor]
+  (creds/hash-bcrypt s :work-factor work-factor))
 
 (defn find-user [db username]
   (sql/find-user {:username username}
@@ -174,8 +169,8 @@
   `(serialize-task* ~name
                     (fn [] ~@body)))
 
-(defn add-user [db email username password pgp-key]
-  (let [record {:email email, :username username, :password (bcrypt password),
+(defn add-user [db work-factor email username password pgp-key]
+  (let [record {:email email, :username username, :password (bcrypt password work-factor),
                 :pgp_key pgp-key :created (time/now)}
         groupname (str "org.clojars." username)]
     (serialize-task :add-user
@@ -185,23 +180,23 @@
                                        {:connection db}))
     record))
 
-(defn update-user [db account email username password pgp-key]
+(defn update-user [db work-factor account email username password pgp-key]
   (let [fields {:email email
                 :username username
                 :pgp_key pgp-key
                 :account account}
         fields (if (empty? password)
                  fields
-                 (assoc fields :password (bcrypt password)))]
+                 (assoc fields :password (bcrypt password work-factor)))]
     (serialize-task :update-user
                     (sql/update-user! fields
                                       {:connection db}))
     fields))
 
-(defn update-user-password [db reset-code password]
+(defn update-user-password [db work-factor reset-code password]
   (assert (not (str/blank? reset-code)))
   (serialize-task :update-user-password
-                    (sql/update-user-password! {:password (bcrypt password)
+                    (sql/update-user-password! {:password (bcrypt password work-factor)
                                                 :reset_code reset-code}
                                                {:connection db})))
 

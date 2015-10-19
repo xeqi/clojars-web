@@ -17,14 +17,16 @@
 
 (def ^:dynamic *db*)
 (def ^:dynamic *index*)
+(def ^:dynamic *deletion-backup-dir*)
+(def ^:dynamic *repo*)
 
 (defn repo->backup [parts]
-  (let [backup (doto (io/file (:deletion-backup-dir config))
+  (let [backup (doto (io/file *deletion-backup-dir*)
                  (.mkdirs))
         parts' (vec (remove nil? parts))]
     (try
       (FileUtils/moveDirectory
-        (apply io/file (:repo config)
+        (apply io/file *repo*
                    (str/replace (first parts') "." "/") (rest parts'))
         (io/file backup (str/join "-" (conj parts' (current-date-str)))))
       (catch Exception e

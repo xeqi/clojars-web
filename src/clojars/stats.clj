@@ -9,7 +9,8 @@
 (defn all* [^FileSystem fs]
   (let [path (.getPath fs (config/config :stats-dir) (into-array String ["/all.edn"]))]
     (if (Files/exists path (into-array LinkOption []))
-      (read (java.io.PushbackReader. (Files/newBufferedReader path (Charset/defaultCharset))))
+      (with-open [r (java.io.PushbackReader. (Files/newBufferedReader path (Charset/defaultCharset)))]
+        (read r))
       {})))
 
 (def all (memo/ttl all* :ttl/threshold (* 60 60 1000))) ;; 1 hour

@@ -12,7 +12,7 @@
 (def jarmap {:name jarname :group jarname})
 
 (defn add-jar [i version & {:as override}]
-  (time/do-at (time/plus (time/epoch) (time/seconds i))
+  (help/do-at (time/plus (time/epoch) (time/seconds i))
     (is (db/add-jar help/database "test-user" (merge (assoc jarmap :version version) override)))))
 
 (deftest only-release

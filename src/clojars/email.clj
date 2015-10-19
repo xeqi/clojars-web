@@ -1,13 +1,11 @@
 (ns clojars.email
-  (:require [clojars.config :as config])
   (:import [org.apache.commons.mail SimpleEmail]))
 
 (defn send-out [email]
   (.send email))
 
-(defn send-email [to subject message]
-  (let [{:keys [hostname username password port ssl from]} (config/config :mail)
-        mail (doto (SimpleEmail.)
+(defn send-email [{:keys [hostname username password port ssl from]} to subject message]
+  (let [mail (doto (SimpleEmail.)
                (.setHostName (or hostname "localhost"))
                (.setSslSmtpPort (str (or port 25)))
                (.setSmtpPort (or port 25))

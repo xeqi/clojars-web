@@ -5,6 +5,7 @@
             [clojars.maven :as maven]
             [clojure.java.io :as io]
             [clojure.test :as test]
+            [clojars.test.test-helper :as help]
             [kerodon.core :refer :all])
   (:import java.nio.file.Files
            java.nio.file.LinkOption
@@ -52,15 +53,17 @@
         (get [_ name file]
           (let [path (.getPath fs (:repo config) (into-array String [name]))]
             (if (Files/exists path (into-array LinkOption []))
-              (io/copy (maven/path-to-reader path)
-                       file)
+              (with-open [r (maven/path-to-reader path)]
+                (io/copy r file))
               (throw (org.apache.maven.wagon.ResourceDoesNotExistException. "")))))
         (put [_ file destination]
           (let [path (.getPath fs (:repo config) (into-array String [destination]))]
             (Files/createDirectories (.getParent path) (into-array FileAttribute []))
-            (io/copy file
-                     (Files/newOutputStream path
-                                            (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE])))))))))
+            (with-open [s (Files/newOutputStream path
+                                                 (into-array OpenOption
+                                                             [StandardOpenOption/CREATE
+                                                              StandardOpenOption/WRITE]))]
+              (io/copy file s))))))))
 
 (defn inject-artifacts-into-repo! [db fs user jar pom]
   (let [pom-file (io/resource pom)
@@ -75,6 +78,7 @@
                         :jar-file (io/resource jar)
                         :pom-file pom-file
                         :repository {"nio" {:url (str id ":")
-                                            :checksum false}})
+                                            :checksum false}}
+                        :local-repo (str (.toURI (help/make-tmp-dir))))
          (finally
            (swap! @#'aether/wagon-factories dissoc id))))))

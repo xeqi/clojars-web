@@ -68,7 +68,7 @@
         pom-path (if (re-find #"SNAPSHOT$" version)
                      (snapshot-pom-file parent jar)
                      (.resolve parent (format "%s-%s.%s" jar_name version "pom")))]
-      (pom-to-map pom-path)))
+    (pom-to-map pom-path)))
 
 (defn github-info [pom-map]
   (let [scm (:scm pom-map)

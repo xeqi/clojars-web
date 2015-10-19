@@ -3,15 +3,10 @@
              [coerce :as time.coerce]
              [core :as time]]
             [clojars.db :as db]
-            [clojars.db.migrate :as migrate]
             [clojars.test.test-helper :as help]
-            [clojure.java.jdbc :as jdbc]
-            [clojure.test :refer :all]
-            [com.stuartsierra.component :as component]
-            [duct.component.hikaricp :refer [hikaricp]]))
+            [clojure.test :refer :all]))
 
 (use-fixtures :each
-  help/using-test-config
   help/with-clean-database)
 
 (defn submap [s m]
@@ -22,7 +17,7 @@
         name "testuser"
         password "password"
         pgp-key "aoeu"]
-      (is (db/add-user help/database email name password pgp-key))
+      (is (db/add-user help/database 8  email name password pgp-key))
       (are [x] (submap {:email email
                         :user name}
                        x)
@@ -38,16 +33,16 @@
         name "testuser"
         password "password"
         pgp-key "aoeu"]
-      (db/add-user help/database email name password pgp-key)
-      (let [reset-code (time/do-at (time/epoch)
+      (db/add-user help/database 8 email name password pgp-key)
+      (let [reset-code (help/do-at (time/epoch)
                                    (db/set-password-reset-code! help/database "test@example.com"))]
         (is (submap {:email email
                      :user name
                      :password_reset_code reset-code}
-                    (time/do-at (time/epoch)
+                    (help/do-at (time/epoch)
                                 (db/find-user-by-password-reset-code help/database reset-code))))
 
-        (time/do-at (time/plus (time/epoch) (-> 1 time/days) (time/seconds 1))
+        (help/do-at (time/plus (time/epoch) (-> 1 time/days) (time/seconds 1))
           (is (not (db/find-user-by-password-reset-code help/database reset-code)))))))
 
 (deftest updated-users-can-be-found
@@ -60,10 +55,10 @@
         name2 "testuser2"
         password2 "password2"
         pgp-key2 "aoeu2"]
-    (time/do-at time
-                (is (db/add-user help/database email name password pgp-key)))
-    (time/do-at (-> time (time/plus (-> 1 time/seconds)))
-                (is (db/update-user help/database name email2 name2 password2 pgp-key2)))
+    (help/do-at time
+                (is (db/add-user help/database 8 email name password pgp-key)))
+    (help/do-at (-> time (time/plus (-> 1 time/seconds)))
+                (is (db/update-user help/database 8 name email2 name2 password2 pgp-key2)))
     (are [x] (submap {:email email2
                       :user name2
                       :pgp_key pgp-key2
@@ -79,7 +74,7 @@
         name "testuser"
         password "password"
         pgp-key "aoeu"]
-    (is (db/add-user help/database email name password pgp-key))
+    (is (db/add-user help/database 8 email name password pgp-key))
     (is (= ["testuser"]
            (db/group-membernames help/database (str "org.clojars." name))))
     (is (= ["org.clojars.testuser"]
@@ -90,7 +85,7 @@
         name "testuser"
         password "password"
         pgp-key "aoeu"]
-    (db/add-user help/database email name password pgp-key)
+    (db/add-user help/database 8 email name password pgp-key)
     (db/add-member help/database "test-group" name "some-dude")
     (is (= ["testuser"] (db/group-membernames help/database "test-group")))
     (is (some #{"test-group"} (db/find-groupnames help/database name)))))
@@ -115,7 +110,7 @@
                 :group_name name
                 :authors "Alex Osborne, a little fish"
                 :description "An dog awesome and non-existent test jar."}]
-    (time/do-at time
+    (help/do-at time
       (is (db/add-jar help/database "test-user" jarmap))
       (are [x] (submap result x)
            (db/find-jar help/database name name)
@@ -161,10 +156,10 @@
              :homepage "http://clojars.org/"
              :authors ["Alex Osborne" "a little fish"]}]
 
-    (time/do-at (time/epoch)
+    (help/do-at (time/epoch)
                  (db/add-jar help/database "test-user" jar))
     (db/jars-by-groupname help/database group)
-    (time/do-at (time/plus (time/epoch) (time/seconds 1))
+    (help/do-at (time/plus (time/epoch) (time/seconds 1))
                 (db/add-jar help/database "test-user"
                             (assoc jar
                                    :version "2.0")))
@@ -180,9 +175,9 @@
                 :version "2"
                 :user "test-user"
                 :group_name name }]
-    (time/do-at (time/epoch)
+    (help/do-at (time/epoch)
       (is (db/add-jar help/database "test-user" jarmap)))
-    (time/do-at (time/plus (time/epoch) (time/seconds 1))
+    (help/do-at (time/plus (time/epoch) (time/seconds 1))
       (is (db/add-jar help/database "test-user" (assoc jarmap :version "2"))))
     (let [jars (db/jars-by-groupname help/database name)]
       (dorun (map #(is (= %1 (select-keys %2 (keys %1)))) [result] jars))
@@ -191,13 +186,13 @@
 (deftest jars-with-multiple-versions
   (let [name "tester"
         jarmap {:name name :group name :version "1" }]
-    (time/do-at (time/epoch)
+    (help/do-at (time/epoch)
       (is (db/add-jar help/database "test-user" jarmap)))
-    (time/do-at (time/plus (time/epoch) (time/seconds 1))
+    (help/do-at (time/plus (time/epoch) (time/seconds 1))
       (is (db/add-jar help/database "test-user" (assoc jarmap :version "2"))))
-    (time/do-at (time/plus (time/epoch) (time/seconds 2))
+    (help/do-at (time/plus (time/epoch) (time/seconds 2))
       (is (db/add-jar help/database "test-user" (assoc jarmap :version "3"))))
-    (time/do-at (time/plus (time/epoch) (time/seconds 3))
+    (help/do-at (time/plus (time/epoch) (time/seconds 3))
       (is (db/add-jar help/database "test-user" (assoc jarmap :version "4-SNAPSHOT"))))
     (is (= 4 (db/count-versions help/database name name)))
     (is (= ["4-SNAPSHOT" "3" "2" "1"]
@@ -215,13 +210,13 @@
     (db/add-member help/database name "test-user" "some-dude")
     (db/add-member help/database "tester-group" "test-user2" "some-dude")
     (db/add-member help/database name "test-user2" "some-dude")
-    (time/do-at (time/epoch)
+    (help/do-at (time/epoch)
       (is (db/add-jar help/database "test-user" jarmap)))
-    (time/do-at (time/plus (time/epoch) (time/seconds 1))
+    (help/do-at (time/plus (time/epoch) (time/seconds 1))
       (is (db/add-jar help/database "test-user" (assoc jarmap :name "tester2"))))
-    (time/do-at (time/plus (time/epoch) (time/seconds 2))
+    (help/do-at (time/plus (time/epoch) (time/seconds 2))
       (is (db/add-jar help/database "test-user2" (assoc jarmap :name "tester3"))))
-    (time/do-at (time/plus (time/epoch) (time/seconds 3))
+    (help/do-at (time/plus (time/epoch) (time/seconds 3))
       (is (db/add-jar help/database "test-user2" (assoc jarmap :group "tester-group"))))
     (let [jars (db/jars-by-groupname help/database name)]
       (dorun (map #(is (submap %1 %2))
@@ -238,9 +233,9 @@
                 :version "2"
                 :user "test-user"
                 :group_name name }]
-    (time/do-at (time/epoch)
+    (help/do-at (time/epoch)
       (is (db/add-jar help/database "test-user" jarmap)))
-    (time/do-at (time/plus (time/epoch) (time/seconds 1))
+    (help/do-at (time/plus (time/epoch) (time/seconds 1))
       (is (db/add-jar help/database "test-user" (assoc jarmap :version "2"))))
     (let [jars (db/jars-by-username help/database "test-user")]
       (dorun (map #(is (= %1 (select-keys %2 (keys %1)))) [result] jars))
@@ -256,13 +251,13 @@
     (db/add-member help/database name "test-user" "some-dude")
     (db/add-member help/database "tester-group" "test-user" "some-dude")
     (db/add-member help/database name "test-user2" "some-dude")
-    (time/do-at (time/epoch)
+    (help/do-at (time/epoch)
       (is (db/add-jar help/database "test-user" jarmap)))
-    (time/do-at (time/plus (time/epoch) (time/seconds 1))
+    (help/do-at (time/plus (time/epoch) (time/seconds 1))
       (is (db/add-jar help/database "test-user" (assoc jarmap :name "tester2"))))
-    (time/do-at (time/plus (time/epoch) (time/seconds 2))
+    (help/do-at (time/plus (time/epoch) (time/seconds 2))
       (is (db/add-jar help/database "test-user2" (assoc jarmap :name "tester3"))))
-    (time/do-at (time/plus (time/epoch) (time/seconds 3))
+    (help/do-at (time/plus (time/epoch) (time/seconds 3))
       (is (db/add-jar help/database "test-user" (assoc jarmap :group "tester-group"))))
     (let [jars (db/jars-by-username help/database "test-user")]
       (dorun (map #(is (submap %1 %2))
@@ -324,19 +319,19 @@
                 :group_name name
                 :authors "Alex Osborne, a little fish"
                 :description "An dog awesome and non-existent test jar."}]
-    (time/do-at (time/plus (time/epoch) (time/seconds 1))
+    (help/do-at (time/plus (time/epoch) (time/seconds 1))
       (db/add-jar help/database "test-user" (assoc jarmap :name "1")))
-    (time/do-at (time/plus (time/epoch) (time/seconds 2))
+    (help/do-at (time/plus (time/epoch) (time/seconds 2))
       (db/add-jar help/database "test-user" (assoc jarmap :name "2")))
-    (time/do-at (time/plus (time/epoch) (time/seconds 3))
+    (help/do-at (time/plus (time/epoch) (time/seconds 3))
       (db/add-jar help/database "test-user" (assoc jarmap :name "3")))
-    (time/do-at (time/plus (time/epoch) (time/seconds 4))
+    (help/do-at (time/plus (time/epoch) (time/seconds 4))
       (db/add-jar help/database "test-user" (assoc jarmap :name "4")))
-    (time/do-at (time/plus (time/epoch) (time/seconds 5))
+    (help/do-at (time/plus (time/epoch) (time/seconds 5))
       (db/add-jar help/database "test-user" (assoc jarmap :version "5")))
-    (time/do-at (time/plus (time/epoch) (time/seconds 6))
+    (help/do-at (time/plus (time/epoch) (time/seconds 6))
       (db/add-jar help/database "test-user" (assoc jarmap :name "6")))
-    (time/do-at (time/plus (time/epoch) (time/seconds 7))
+    (help/do-at (time/plus (time/epoch) (time/seconds 7))
       (db/add-jar help/database "test-user" (assoc jarmap :version "7")))
     (dorun (map #(is (submap %1 %2))
                 [(assoc result :version "7")
@@ -347,13 +342,13 @@
                 (db/recent-jars help/database)))))
 
 (deftest browse-projects-finds-jars
-  (time/do-at (time/epoch)
+  (help/do-at (time/epoch)
               (db/add-jar help/database "test-user" {:name "rock" :group "jester" :version "0.1"})
               (db/add-jar help/database "test-user" {:name "rock" :group "tester" :version "0.1"}))
-  (time/do-at (time/plus (time/epoch) (time/seconds 1))
+  (help/do-at (time/plus (time/epoch) (time/seconds 1))
               (db/add-jar help/database "test-user" {:name "rock" :group "tester" :version "0.2"})
               (db/add-jar help/database "test-user" {:name "paper" :group "tester" :version "0.1"}))
-  (time/do-at (time/plus (time/epoch) (time/seconds 2))
+  (help/do-at (time/plus (time/epoch) (time/seconds 2))
               (db/add-jar help/database "test-user" {:name "scissors" :group "tester" :version "0.1"}))
     ; tests group_name and jar_name ordering
     (is (=

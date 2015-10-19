@@ -1,22 +1,29 @@
 (ns clojars.web.user
-  (:require [clojars.db :as db :refer [find-user group-membernames add-user
-                                reserved-names update-user jars-by-username
-                                find-groupnames find-user-by-user-or-email
-                                rand-string]]
-            [clojars.web.common :refer [html-doc error-list jar-link
-                                        flash group-link]]
-            [clojars.config :refer [config]]
+  (:require [clojars
+             [config :refer [config]]
+             [db
+              :as
+              db
+              :refer
+              [find-groupnames
+               find-user
+               find-user-by-user-or-email
+               group-membernames
+               jars-by-username
+               reserved-names
+               update-user]]
+             [email :as email]]
+            [clojars.web
+             [common :refer [error-list flash group-link html-doc jar-link]]
+             [safe-hiccup :refer [form-to]]]
             [clojure.string :as string :refer [blank?]]
-            [hiccup.element :refer [link-to unordered-list]]
-            [hiccup.form :refer [label text-field
-                                 password-field text-area
-                                 submit-button
-                                 email-field]]
-            [clojars.web.safe-hiccup :refer [form-to]]
-            [clojars.email :as email]
-            [ring.util.response :refer [response redirect]]
-            [valip.core :refer [validate]]
-            [valip.predicates :as pred]))
+            [hiccup
+             [element :refer [unordered-list]]
+             [form :refer [email-field label password-field submit-button text-area text-field]]]
+            [ring.util.response :refer [redirect]]
+            [valip
+             [core :refer [validate]]
+             [predicates :as pred]]))
 
 (defn register-form [ & [errors email username pgp-key]]
   (html-doc nil "Register"
@@ -92,7 +99,7 @@
                       (text-area :pgp-key (user :pgp_key))
                       (submit-button "Update"))]))
 
-(defn update-profile [db account {:keys [email password confirm pgp-key] :as params}]
+(defn update-profile [db work-factor account {:keys [email password confirm pgp-key] :as params}]
   (let [pgp-key (and pgp-key (.trim pgp-key))]
     (if-let [errors (apply validate {:email email
                                      :username account
@@ -100,7 +107,7 @@
                                      :pgp-key pgp-key}
                            (update-user-validations confirm))]
       (profile-form account params nil (apply concat (vals errors)))
-      (do (update-user db account email account password pgp-key)
+      (do (update-user db work-factor account email account password pgp-key)
           (assoc (redirect "/profile")
             :flash "Profile updated.")))))
 
@@ -127,12 +134,12 @@
                           :email-or-username)
               (submit-button "Email me a password reset link"))]))
 
-(defn forgot-password [db {:keys [email-or-username]}]
+(defn forgot-password [db mailer {:keys [email-or-username]}]
   (when-let [user (find-user-by-user-or-email db email-or-username)]
     (let [reset-code (db/set-password-reset-code! db email-or-username)
           base-url (:base-url config)
           reset-password-url (str base-url "/password-resets/" reset-code)]
-      (email/send-email (user :email)
+      (email/send-email mailer (user :email)
         "Password reset for Clojars"
         (->> ["Hello,"
               "We received a request from someone, hopefully you, to reset the password of your clojars user."
@@ -173,12 +180,12 @@
    [:reset-code pred/present? "Reset code can't be blank."]
    [:password #(= % confirm) "Password and confirm password must match"]])
 
-(defn edit-password [db reset-code {:keys [password confirm]}]
+(defn edit-password [db work-factor reset-code {:keys [password confirm]}]
   (if-let [errors (apply validate {:password password
                                    :reset-code reset-code}
                          (update-password-validations db confirm))]
     (edit-password-form db reset-code (apply concat (vals errors)))
     (do
-      (db/update-user-password db reset-code password)
+      (db/update-user-password db work-factor reset-code password)
       (assoc (redirect "/login")
              :flash "Your password was updated."))))

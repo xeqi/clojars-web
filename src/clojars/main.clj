@@ -22,7 +22,9 @@
          :error-handler (yeller-component {:token (:yeller-token config)
                                            :environment (:yeller-environment config)})
          :nrepl-server
-         (component/using (nrepl-server-component {:port (:nrepl-port config)})
+         (component/using (nrepl-server-component {:port (:nrepl-port config)
+                                                   :deletion-backup-dir (:deletion-backup-dir config)
+                                                   :repo (:repo config)})
                           [:db :index])))
 
 (def system (prod-system config))

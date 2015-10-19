@@ -43,7 +43,8 @@ by default. If the view system is ever changed, remove this"
                 (eftest/find-tests "test")
                 tests)]
     (eftest/run-tests tests {:report eftest.report.pretty/report
-                             :multithread? false})))
+  ;                           :multithread? false
+                             })))
 
 (when (io/resource "local.clj")
   (load "local"))

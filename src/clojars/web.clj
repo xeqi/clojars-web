@@ -36,7 +36,7 @@
              [resource :refer [wrap-resource]]
              [session :refer [wrap-session]]]))
 
-(defn main-routes [error-handler db index fs]
+(defn main-routes [error-handler db index fs work-factor mailer]
   (routes
    (GET "/" _
         (try-account
@@ -61,7 +61,7 @@
    (artifact/routes error-handler db fs)
    ;; user routes must go after artifact routes
    ;; since they both catch /:identifier
-   (user/routes db)
+   (user/routes db work-factor mailer)
    (api/routes db fs)
    (GET "/error" _ (throw (Exception. "What!? You really want an error?")))
    (PUT "*" _ {:status 405 :headers {} :body "Did you mean to use /repo?"})
@@ -106,7 +106,7 @@
         (secure-session req)
         (regular-session req)))))
 
-(defn repo [{:keys [error-handler db fs]}]
+(defn repo [{:keys [error-handler db fs base-directory]}]
   (let [db (:spec db db)]
     (context "/repo" _
              (-> (repo/routes error-handler db fs)
@@ -116,17 +116,17 @@
                    :allow-anon? false
                    :unauthenticated-handler
                    (partial workflows/http-basic-deny "clojars")})
-                 (repo/wrap-file fs (:repo config))
+                 (repo/wrap-file fs base-directory)
                  (repo/wrap-reject-double-dot)))))
 
-(defn ui [{:keys [error-handler db index fs]}]
+(defn ui [{:keys [error-handler db index fs bcrypt-work-factor mailer]}]
   (let [db (:spec db db)
         index (:index index)]
-    (-> (main-routes error-handler db index fs)
+    (-> (main-routes error-handler db index fs bcrypt-work-factor mailer)
         (friend/authenticate
          {:credential-fn (credential-fn db)
           :workflows [(workflows/interactive-form)
-                      (registration/workflow db)]})
+                      (registration/workflow db bcrypt-work-factor)]})
         (wrap-anti-forgery)
         (wrap-x-frame-options)
         (wrap-keyword-params)

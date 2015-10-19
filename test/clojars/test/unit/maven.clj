@@ -1,9 +1,12 @@
 (ns clojars.test.unit.maven
-  (:use clojure.test clojars.maven)
-  (:require [clojars.config :refer [config]]
+  (:require [clojars
+             [config :refer [config]]
+             [maven :refer :all]]
+            [clojars.test.test-helper :as help]
             [clojure.java.io :as io]
-            [clojars.test.test-helper :as help])
-  (:import java.nio.file.FileSystems))
+            [clojure.test :refer :all])
+  (:import [java.nio.file Files OpenOption]
+           java.nio.file.attribute.FileAttribute))
 
 (use-fixtures :each help/with-memory-fs)
 
@@ -35,15 +38,35 @@
                          :jar_name "monger"
                          :version "1.2.0-alpha1"}))))
 
-(def snapshot "20120806.052549-1")
+(defn make-metadata [group-id artifact-id versions]
+  (str "<metadata>
+  <groupId>" group-id "</groupId>
+  <artifactId>" artifact-id "</artifactId>
+  <versioning>
+  <versions>"
+  (clojure.string/join "\n"
+                       (for [v versions]
+                         (str "<version>"v"</version>"))) "
+  </versions>
+  <snapshot>
+    <timestamp>20120427.113221</timestamp>
+    <buildNumber>133</buildNumber>
+  </snapshot>
+  <lastUpdated>20120810193549</lastUpdated>
+  </versioning>
+  </metadata>"))
 
 (defn expected-file [& [d1 d2 d3 file :as args]]
   (.getPath help/fs (config :repo)
-            (into-array String [d1 d2 d3 (str file "-" snapshot ".pom")])))
+            (into-array String [d1 d2 d3 (str file "-20120427.113221-133.pom")])))
 
-(defn snapshot-pom-file-with [jar-map]
-  (with-redefs [snapshot-version (constantly snapshot)]
-    (snapshot-pom-file (directory-for help/fs jar-map) jar-map)))
+(defn snapshot-pom-file-with [{:keys [group_name jar_name version] :as jar-map}]
+  (let [parent (directory-for help/fs jar-map)]
+    (Files/createDirectories parent (into-array FileAttribute []))
+    (with-open [s (Files/newOutputStream (.resolve parent "maven-metadata.xml")
+                                         (into-array OpenOption []))]
+      (spit s (make-metadata group_name jar_name [version])))
+    (snapshot-pom-file parent jar-map)))
 
 (deftest snapshot-pom-file-handles-single-digit-patch-version
   (is (=
@@ -58,13 +81,6 @@
         (snapshot-pom-file-with {:group_name "fake"
                                  :jar_name "test"
                                  :version "0.11.13-SNAPSHOT"}))))
-
-(deftest snapshot-pom-file-handles-no-patch-version
-  (is (=
-        (expected-file "fake" "test" "0.1-SNAPSHOT" "test-0.1")
-        (snapshot-pom-file-with {:group_name "fake"
-                                 :jar_name "test"
-                                 :version "0.1-SNAPSHOT"}))))
 
 (deftest snapshot-pom-file-handles-no-patch-version
   (is (=

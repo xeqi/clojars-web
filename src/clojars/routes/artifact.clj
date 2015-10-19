@@ -17,6 +17,7 @@
   (try
     (jar-to-pom-map fs artifact)
     (catch IOException e
+      (prn e)
       (ports/report error-handler (ex-info "Failed to create pom map" artifact e))
       nil)))
 

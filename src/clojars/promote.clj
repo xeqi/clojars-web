@@ -29,8 +29,9 @@
   (if public-key
     (let [sig (decode-signature (slurp (Files/newBufferedReader sig-path (Charset/defaultCharset)))) ]
       (if (= (pgp/key-id sig) (pgp/key-id public-key))
-        (pgp-sig/verify (Files/newInputStream data (into-array OpenOption [StandardOpenOption/READ]))
-                        sig public-key)))))
+        (let [stream (Files/newInputStream data (into-array OpenOption [StandardOpenOption/READ]))]
+          (try (pgp-sig/verify stream sig public-key)
+               (finally (.close stream))))))))
 
 (defn parse-keys [s]
   (try

@@ -22,10 +22,10 @@
 (defn save-to-file [path input]
   (Files/createDirectories (.getParent path)
                            (into-array FileAttribute []))
-  (io/copy input
-           (Files/newOutputStream
-              path
-              (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE]))))
+  (with-open [o (Files/newOutputStream
+                 path
+                 (into-array OpenOption [StandardOpenOption/CREATE StandardOpenOption/WRITE]))]
+    (io/copy input o)))
 
 (defn- try-save-to-file [path input]
   (try

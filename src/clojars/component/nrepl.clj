@@ -4,19 +4,22 @@
              [server :refer [default-handler start-server stop-server]]]
             [com.stuartsierra.component :as component]))
 
-(defn bind-components-for-global-admin-functions [db index]
+(defn bind-components-for-global-admin-functions [db index deletion-backup-dir repo]
   (with-meta
     (fn [h]
       (fn [{:keys [session] :as msg}]
         (swap! session
                assoc
                #'admin/*db* (:spec db)
-               #'admin/*index* (:index index))
+               #'admin/*index* (:index index)
+               #'admin/*deletion-backup-dir* deletion-backup-dir
+               #'admin/*repo* repo
+               )
         (h msg)))
     {:clojure.tools.nrepl.middleware/descriptor {:requires #{"clone"}
                                                  :expects #{"eval"}}}))
 
-(defrecord NreplServer [port db index]
+(defrecord NreplServer [port db index deletion-backup-dir repo]
   component/Lifecycle
   (start [t]
     (if-not (:server t)
@@ -27,7 +30,9 @@
                                :handler (default-handler
                                           (bind-components-for-global-admin-functions
                                            db
-                                           index)))))
+                                           index
+                                           deletion-backup-dir
+                                           repo)))))
       t))
   (stop [t]
     (when-let [server (:server t)]

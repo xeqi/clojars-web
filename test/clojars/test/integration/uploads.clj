@@ -10,7 +10,8 @@
              [core :refer :all]
              [test :refer :all]]
             [net.cgrand.enlive-html :as enlive])
-  (:import java.nio.file.Files))
+  (:import java.nio.file.Files
+           java.nio.file.LinkOption))
 
 (use-fixtures :each
   help/default-fixture
@@ -22,8 +23,6 @@
 (deftest user-can-register-and-deploy
   (-> (session (help/clojars-ui))
       (register-as "dantheman" "test@example.org" "password"))
-  (help/delete-file-recursively help/local-repo)
-  (help/delete-file-recursively help/local-repo2)
   (aether/deploy
    :coordinates '[org.clojars.dantheman/test "1.0.0"]
    :jar-file (io/file (io/resource "test.jar"))
@@ -31,7 +30,7 @@
    :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                         :username "dantheman"
                         :password "password"}}
-   :local-repo help/local-repo)
+   :local-repo (help/make-tmp-dir))
   (is (= 6
          (-> help/fs
              (.getPath (:repo config)
@@ -45,7 +44,7 @@
           :coordinates '[[org.clojars.dantheman/test "1.0.0"]]
           :repositories {"test" {:url
                                  (str "http://localhost:" help/test-port "/repo")}}
-          :local-repo help/local-repo2)))
+          :local-repo (help/make-tmp-dir))))
   (-> (session (help/clojars-ui))
       (visit "/groups/org.clojars.dantheman")
       (has (status? 200))
@@ -62,8 +61,6 @@
 (deftest user-can-deploy-to-new-group
    (-> (session (help/clojars-ui))
        (register-as "dantheman" "test@example.org" "password"))
-   (help/delete-file-recursively help/local-repo)
-   (help/delete-file-recursively help/local-repo2)
    (aether/deploy
     :coordinates '[fake/test "0.0.1"]
     :jar-file (io/file (io/resource "test.jar"))
@@ -71,13 +68,13 @@
     :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                          :username "dantheman"
                          :password "password"}}
-    :local-repo help/local-repo)
+    :local-repo (help/make-tmp-dir))
    (is (= '{[fake/test "0.0.1"] nil}
           (aether/resolve-dependencies
            :coordinates '[[fake/test "0.0.1"]]
            :repositories {"test" {:url
                                   (str "http://localhost:" help/test-port "/repo")}}
-           :local-repo help/local-repo2)))
+           :local-repo (help/make-tmp-dir))))
    (-> (session (help/clojars-ui))
        (visit "/groups/fake")
        (has (status? 200))
@@ -105,7 +102,7 @@
          :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                               :username "dantheman"
                               :password "password"}}
-         :local-repo help/local-repo))))
+         :local-repo (help/make-tmp-dir)))))
 
 (deftest user-cannot-redeploy
   (-> (session (help/clojars-ui))
@@ -117,7 +114,7 @@
    :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                         :username "dantheman"
                         :password "password"}}
-   :local-repo help/local-repo)
+   :local-repo (help/make-tmp-dir))
   (is (thrown-with-msg?
         org.sonatype.aether.deployment.DeploymentException
         #"Forbidden - redeploying non-snapshots"
@@ -128,7 +125,7 @@
           :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                                :username "dantheman"
                                :password "password"}}
-          :local-repo help/local-repo))))
+          :local-repo (help/make-tmp-dir)))))
 
 (deftest user-can-redeploy-snapshots
   (-> (session (help/clojars-ui))
@@ -140,7 +137,7 @@
    :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                         :username "dantheman"
                         :password "password"}}
-   :local-repo help/local-repo)
+   :local-repo (help/make-tmp-dir))
   (aether/deploy
    :coordinates '[org.clojars.dantheman/test "0.0.3-SNAPSHOT"]
    :jar-file (io/file (io/resource "test.jar"))
@@ -148,7 +145,7 @@
    :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                         :username "dantheman"
                         :password "password"}}
-   :local-repo help/local-repo))
+   :local-repo (help/make-tmp-dir)))
 
 (deftest user-can-deploy-snapshot-with-dot
   (-> (session (help/clojars-ui))
@@ -160,7 +157,7 @@
    :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                         :username "dantheman"
                         :password "password"}}
-   :local-repo help/local-repo))
+   :local-repo (help/make-tmp-dir)))
 
 (deftest anonymous-cannot-deploy
   (is (thrown-with-msg? org.sonatype.aether.deployment.DeploymentException
@@ -170,7 +167,7 @@
          :jar-file (io/file (io/resource "test.jar"))
          :pom-file (io/file (io/resource "test-0.0.1/test.pom"))
          :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")}}
-         :local-repo help/local-repo))))
+         :local-repo (help/make-tmp-dir)))))
 
 (deftest bad-login-cannot-deploy
   (is (thrown? org.sonatype.aether.deployment.DeploymentException
@@ -181,7 +178,7 @@
          :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                               :username "guest"
                               :password "password"}}
-         :local-repo help/local-repo))))
+         :local-repo (help/make-tmp-dir)))))
 
 (deftest deploy-requires-lowercase-group
   (-> (session (help/clojars-ui))
@@ -195,7 +192,7 @@
          :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                               :username "dantheman"
                               :password "password"}}
-         :local-repo help/local-repo))))
+         :local-repo (help/make-tmp-dir)))))
 
 (deftest deploy-requires-lowercase-project
   (-> (session (help/clojars-ui))
@@ -209,7 +206,7 @@
          :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                               :username "dantheman"
                               :password "password"}}
-         :local-repo help/local-repo))))
+         :local-repo (help/make-tmp-dir)))))
 
 (deftest deploy-requires-ascii-version
   (-> (session (help/clojars-ui))
@@ -223,7 +220,7 @@
          :repository {"test" {:url (str "http://localhost:" help/test-port "/repo")
                               :username "dantheman"
                               :password "password"}}
-         :local-repo help/local-repo))))
+         :local-repo (help/make-tmp-dir)))))
 
 (deftest put-on-html-fails
   (-> (session (help/clojars-app))
@@ -303,8 +300,9 @@
                                                                   "UTF-8"))
                                                       "UTF-8"))})
         (has (status? 403))))
-  (is (not (.exists (clojure.java.io/file (:repo config)
-                                          "group3"
-                                          "artifact3"
-                                          "1.0.0"
-                                          "test.jar")))))
+  (is (not (Files/exists (.getPath help/fs (:repo config)
+                                   (into-array String ["group3"
+                                                       "artifact3"
+                                                       "1.0.0"
+                                                       "test.jar"]))
+                         (into-array LinkOption [])))))

@@ -31,9 +31,12 @@
          :repo (endpoint-component web/repo)
          :db   (hikaricp (:db config))
          :index (lucene-component (:index-path config))
-         :fs   (FileSystems/getDefault))
+         :fs   (FileSystems/getDefault)
+         :bcrypt-work-factor (:bcrypt-work-factor config)
+         :base-directory (:repo config)
+         :mailer (:mail config))
         (component/system-using
          {:http [:app]
           :app  [:repo :ui :error-handler]
-          :ui   [:error-handler :db :fs]
-          :repo [:error-handler :db :fs]}))))
+          :ui   [:error-handler :db :fs :bcrypt-work-factor :mailer]
+          :repo [:error-handler :db :fs :base-directory]}))))
