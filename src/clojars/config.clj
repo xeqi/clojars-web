@@ -23,10 +23,6 @@
 (defn parse-resource [f]
   (when-let [r (io/resource f)] (read-string (slurp r))))
 
-;; we attempt to read a config.clj from the classpath at load time
-;; this is handy for interactive development and unit tests
-(def config (merge default-config (parse-resource "config.clj")))
-
 (defn url-decode [s]
   (java.net.URLDecoder/decode s "UTF-8"))
 
@@ -58,8 +54,7 @@
    x))
 
 (def env-vars
-  [["CONFIG_FILE" :config-file]
-   ["PORT" :port #(Integer/parseInt %)]
+  [["PORT" :port #(Integer/parseInt %)]
    ["BIND" :bind]
    ["DATABASE_URL" :db]
    ["MAIL_URL" :mail parse-mail-uri]
@@ -80,46 +75,23 @@
        m))
    {} env-vars))
 
-(defn parse-args [args defaults]
+;; we attempt to read a config.clj from the classpath at load time
+;; this is handy for interactive development
+(def config (merge default-config (parse-resource "config.clj") (parse-env)))
+
+(defn parse-args [args]
   (cli args
-       ["-h" "--help" "Show this help text and exit" :flag true]
-       ["-f" "Read configuration map from a file" :name :config-file]
-       ["-p" "--port" "Port to listen on for web requests"
-        :parse-fn #(Integer/parseInt %) :default (:port defaults)]
-       ["-b" "--bind" "Address to bind to for web requests"
-        :default (:address defaults)]
-       ["--db" "Database URL like sqlite:data/db"]
-       ["--mail" "SMTP URL like smtps://user:pass@host:port?from=me@example.org"]
-       ["--repo" "Path to store jar files in"]
-       ["--bcrypt-work-factor" "Difficulty factor for bcrypt password hashing"
-        :parse-fn #(Integer/parseInt %) :default (:bcrypt-work-factor defaults)]))
+       ["-h" "--help" "Show this help text and exit" :flag true]))
 
-(defn parse-file [f]
-  (read-string (slurp (io/file f))))
-
-(defn remove-nil-vals [m]
-  (into {} (remove #(nil? (val %)) m)))
-
-(defn parse-config [args]
-  (let [env-opts (merge default-config (parse-resource "config.clj") (parse-env))
-        [arg-opts args banner] (parse-args args env-opts)
-        arg-opts (remove-nil-vals arg-opts)
-        opts (if-let [f (or (:config-file arg-opts) (:config-file env-opts))]
-               (merge env-opts (parse-file f) arg-opts)
-               (merge env-opts arg-opts))]
-    [opts args banner]))
-
-(defn configure [args]
-  (let [[options args banner] (parse-config args)]
+(defn process-args [args]
+  (let [[options args banner] (parse-args args)]
     (when (:help options)
       (println "clojars-web: a jar repository webapp written in Clojure")
       (println "             https://github.com/ato/clojars-web")
       (println)
       (println banner)
       (println "The config file must be a Clojure map: {:port 8080 :repo \"/var/repo\"}")
-      (println "The :db and :mail options can be maps instead of URLs.")
       (println)
       (println "Some options can be set using these environment variables:")
       (println (str/join " " (map first env-vars)))
-      (System/exit 0))
-    (alter-var-root #'config (fn [_] options))))
+      (System/exit 0))))

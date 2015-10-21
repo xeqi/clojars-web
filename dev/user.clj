@@ -14,10 +14,12 @@
 (def dev-env
   {:app {:middleware []}})
 
+(def config
+  (meta-merge config/config
+              dev-env))
 
 (defn new-system []
-  (config/configure [])
-  (system/new-system (meta-merge config/config dev-env)))
+  (system/new-system config))
 
 (ns-unmap *ns* 'test)
 
