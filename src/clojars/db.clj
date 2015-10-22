@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
             [clj-time.core :as time]
-            [clj-time.coerce :as time.coerce]
+            [clj-time.jdbc]
             [clojars.config :refer [config]]
             [clojure.java.jdbc :as jdbc]
             [clojars.db.sql :as sql]
@@ -36,9 +36,6 @@
   [n]
   (str/join (repeatedly n #(rand-nth constituent-chars))))
 
-(defn get-time []
-  (Date.))
-
 (defn bcrypt [s]
   (creds/hash-bcrypt s :work-factor (:bcrypt-work-factor config)))
 
@@ -55,7 +52,7 @@
 (defn find-user-by-password-reset-code [db reset-code]
   (sql/find-user-by-password-reset-code {:reset_code reset-code
                                          :reset_code_created_at
-                                         (-> 1 time/days time/ago time.coerce/to-long)}
+                                         (-> 1 time/days time/ago)}
                                         {:connection db
                                          :result-set-fn first}))
 
@@ -181,7 +178,7 @@
 
 (defn add-user [db email username password pgp-key]
   (let [record {:email email, :username username, :password (bcrypt password),
-                :pgp_key pgp-key :created (get-time)}
+                :pgp_key pgp-key :created (time/now)}
         groupname (str "org.clojars." username)]
     (serialize-task :add-user
                     (sql/insert-user! record
@@ -230,7 +227,7 @@
   (let [reset-code (hexadecimalize (generate-secure-token 20))]
     (serialize-task :set-password-reset-code
                     (sql/set-password-reset-code! {:reset_code reset-code
-                                                   :reset_code_created_at (get-time)
+                                                   :reset_code_created_at (time/now)
                                                    :username_or_email username-or-email}
                                                   {:connection db}))
     reset-code))
@@ -266,7 +263,7 @@
                                  :jarname   name
                                  :version   version
                                  :user      account
-                                 :created    (get-time)
+                                 :created    (time/now)
                                  :description description
                                  :homepage   homepage
                                  :authors    (str/join ", " (map #(.replace % "," "")
@@ -308,7 +305,7 @@
                   (sql/promote! {:group_id group
                                  :artifact_id name
                                  :version version
-                                 :promoted_at (get-time)}
+                                 :promoted_at (time/now)}
                                 {:connection db})))
 
 (defn promoted? [db group-id artifact-id version]
