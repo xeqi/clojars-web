@@ -5,7 +5,8 @@
   (:import (java.sql Timestamp)))
 
 (defn initial-schema [trans]
-  (doseq [cmd (.split (slurp "clojars.sql") ";\n\n")]
+  (doseq [cmd (.split (slurp "clojars.sql") ";\n\n")
+          :when (not-empty (.trim cmd))]
     ;; needs to succeed even if tables exist since this migration
     ;; hasn't been recorded in extant DBs before migrations were introduced
     (sql/db-do-commands trans cmd)))
@@ -52,11 +53,12 @@
    #'add-password-reset-code-created-at])
 
 (defn migrate [db]
-  (sql/db-do-commands db
-                      (sql/create-table-ddl "migrations"
-                                            [:name :varchar "NOT NULL"]
-                                            [:created_at :timestamp
-                                             "NOT NULL"  "DEFAULT CURRENT_TIMESTAMP"]))
+  (try (sql/db-do-commands db
+                           (sql/create-table-ddl "migrations"
+                                                 [:name :varchar "NOT NULL"]
+                                                 [:created_at :timestamp
+                                                  "NOT NULL"  "DEFAULT CURRENT_TIMESTAMP"])) 
+       (catch Exception _))
   (sql/with-db-transaction [trans db]
     (let [has-run? (sql/query trans ["SELECT name FROM migrations"]
                               :row-fn :name
