@@ -59,8 +59,6 @@
 (defn with-clean-database [f]
   (binding [*db* {:connection (jdbc/get-connection (:db test-config))}]
     (try
-      (prn *db*)
-      (prn "valid: " (.isValid (:connection *db*) 1))
       (migrate/migrate *db*)
       (f)
       (finally
