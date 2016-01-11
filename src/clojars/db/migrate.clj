@@ -9,7 +9,7 @@
     ;; needs to succeed even if tables exist since this migration
     ;; hasn't been recorded in extant DBs before migrations were introduced
     (try (println "schema: " cmd)
-         (sql/db-do-commands trans cmd)
+         (prn (sql/db-do-commands trans cmd))
          (catch java.sql.BatchUpdateException e
            (.printStackTrace e)))))
 
