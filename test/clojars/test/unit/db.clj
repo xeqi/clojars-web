@@ -3,7 +3,8 @@
             [clojure.java.jdbc :as jdbc]
             [clojars.test.test-helper :as help]
             [clj-time.core :as time]
-            [clojure.test :refer :all]))
+            [clojure.test :refer :all]
+            [clojars.db.sql :as sql]))
 
 (use-fixtures :each
   help/using-test-config
@@ -200,6 +201,7 @@
 (deftest jars-with-multiple-versions
   (let [name "tester"
         jarmap {:name name :group name :version "1" }]
+    (prn (meta sql/add-jar!))
     (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 0))]
       (is (db/add-jar help/*db* "test-user" jarmap)))
     (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 1))]

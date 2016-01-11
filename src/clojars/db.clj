@@ -156,6 +156,7 @@
                       (try
                         (task)
                         (catch Throwable e
+                          (prn "error on serialize queue")
                           e)))
             response (deref
                       (.submit (write-executor) bound-f)
