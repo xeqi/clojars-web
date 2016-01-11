@@ -201,8 +201,8 @@
   (let [name "tester"
         jarmap {:name name :group name :version "1" }]
     (prn help/*db*)
-    (prn "closed: " (.isClosed help/*db*))
-    (prn "valid: " (.isValid help/*db* 100))
+    (prn "closed: " (.isClosed (:connection help/*db*)))
+    (prn "valid: " (.isValid (:connection help/*db*) 100))
     (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 0))]
       (is (db/add-jar help/*db* "test-user" jarmap)))
     (with-redefs [db/get-time (fn [] (java.sql.Timestamp. 1))]
