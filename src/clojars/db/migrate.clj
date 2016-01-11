@@ -8,8 +8,7 @@
   (doseq [cmd (.split (slurp "clojars.sql") ";\n\n")]
     ;; needs to succeed even if tables exist since this migration
     ;; hasn't been recorded in extant DBs before migrations were introduced
-    (try (sql/db-do-commands trans cmd)
-         (catch java.sql.BatchUpdateException _))))
+    (sql/db-do-commands trans cmd)))
 
 (defn add-promoted-field [trans]
   (sql/db-do-commands trans "ALTER TABLE jars ADD COLUMN promoted_at DATE"))
@@ -53,12 +52,11 @@
    #'add-password-reset-code-created-at])
 
 (defn migrate [db]
-  (try (sql/db-do-commands db
-                           (sql/create-table-ddl "migrations"
-                                                 [:name :varchar "NOT NULL"]
-                                                 [:created_at :timestamp
-                                                  "NOT NULL"  "DEFAULT CURRENT_TIMESTAMP"])) 
-       (catch Exception _))
+  (sql/db-do-commands db
+                      (sql/create-table-ddl "migrations"
+                                            [:name :varchar "NOT NULL"]
+                                            [:created_at :timestamp
+                                             "NOT NULL"  "DEFAULT CURRENT_TIMESTAMP"]))
   (sql/with-db-transaction [trans db]
     (let [has-run? (sql/query trans ["SELECT name FROM migrations"]
                               :row-fn :name
