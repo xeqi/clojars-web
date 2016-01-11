@@ -59,10 +59,11 @@
 (defn with-clean-database [f]
   (binding [*db* {:connection (jdbc/get-connection (:db test-config))}]
     (try
-      (with-out-str
-        (migrate/migrate *db*))
+      (migrate/migrate *db*)
       (f)
-      (finally (.close (:connection *db*))))))
+      (finally
+        (prn "closing" *db*)
+        (.close (:connection *db*))))))
 
 (defn no-stats []
   (stats/->MapStats {}))
@@ -93,7 +94,7 @@
 (defn run-test-app
   ([f]
    (binding [system (component/start (assoc (system/new-system test-config)
-                                            :error-reporter (quiet-reporter)
+                                            :error-reporter (errors/->StdOutReporter)
                                             :index-factory #(clucy/memory-index)
                                             :stats (no-stats)))]
      (let [server (get-in system [:http :server])
