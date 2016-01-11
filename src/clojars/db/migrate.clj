@@ -5,11 +5,12 @@
   (:import (java.sql Timestamp)))
 
 (defn initial-schema [trans]
-  (doseq [cmd (.split (slurp "clojars.sql") ";\n\n")
-          :when (not-empty (.trim cmd))]
+  (doseq [cmd (.split (slurp "clojars.sql") ";\n\n")]
     ;; needs to succeed even if tables exist since this migration
     ;; hasn't been recorded in extant DBs before migrations were introduced
-    (sql/db-do-commands trans cmd)))
+    (try (sql/db-do-commands trans cmd)
+         (catch java.sql.BatchUpdateException e
+           (.printStackTrace e)))))
 
 (defn add-promoted-field [trans]
   (sql/db-do-commands trans "ALTER TABLE jars ADD COLUMN promoted_at DATE"))
