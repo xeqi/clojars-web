@@ -18,7 +18,7 @@ create table jars
         homepage TEXT,
         scm TEXT,
         authors TEXT);
-        
+
 create table deps
        (id INTEGER PRIMARY KEY AUTOINCREMENT,
         group_name TEXT NOT NULL,
